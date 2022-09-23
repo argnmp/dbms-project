@@ -25,8 +25,8 @@ class FileInitTest : public ::testing::Test {
 };
 
 TEST(FileInitTest, FileDescriptorInit){
-    int fd;                                 // file descriptor
-    std::string pathname = "init_test.db";  // customize it to your test file
+    int fd;                                 
+    std::string pathname = "init_test.db";  
     fd = file_open_database_file(pathname.c_str()); 
     file_close_database_file();
     //GTEST_COUT(<<fd);
@@ -87,7 +87,6 @@ class FileTest : public ::testing::Test {
   }
 
   int fd;                
-  //std::string pathname = "../../validdb.db";
   std::string pathname = "init_test.db";
 };
 
