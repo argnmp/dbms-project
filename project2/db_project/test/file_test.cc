@@ -24,32 +24,6 @@ class FileInitTest : public ::testing::Test {
         }
 };
 
-TEST(FileInitTest, FileDescriptorInit){
-    int fd;                                 
-    std::string pathname = "init_test.db";  
-    fd = file_open_database_file(pathname.c_str()); 
-    file_close_database_file();
-    //GTEST_COUT(<<fd);
-    ASSERT_TRUE(fd >= 0) << "Failed to create new database file";
-}
-
-#if ExistFileInitSeries
-TEST(FileInitTest, ExistFileValidInit){
-    int fd;                                 // file descriptor
-    std::string pathname = "../../validdb.db";
-    fd = file_open_database_file(pathname.c_str()); 
-    file_close_database_file();
-    ASSERT_TRUE(fd >= 0);
-}
-TEST(FileInitTest, ExistFileInvalidInit){
-    int fd;                                 // file descriptor
-    std::string pathname = "../../invaliddb.db";
-    fd = file_open_database_file(pathname.c_str()); 
-    file_close_database_file();
-    ASSERT_TRUE(fd == -1);
-}
-#endif
-
 /*
  * "File Initialization" test required from specification
  */
@@ -74,6 +48,24 @@ TEST(FileInitTest, HandlesInitialization){
     // Close all database files
     file_close_database_file();
 }
+
+#if ExistFileInitSeries
+TEST(FileInitTest, ExistFileValidInit){
+    int fd;                                 // file descriptor
+    std::string pathname = "../../validdb.db";
+    fd = file_open_database_file(pathname.c_str()); 
+    file_close_database_file();
+    ASSERT_TRUE(fd >= 0);
+}
+TEST(FileInitTest, ExistFileInvalidInit){
+    int fd;                                 // file descriptor
+    std::string pathname = "../../invaliddb.db";
+    fd = file_open_database_file(pathname.c_str()); 
+    file_close_database_file();
+    ASSERT_TRUE(fd == -1);
+}
+#endif
+
 
 
 class FileTest : public ::testing::Test {
