@@ -1,12 +1,15 @@
-#include <unistd.h>
-#include <iostream>
 #include "file.h"
-using namespace std;
 
-int global_fd;
+map<string, int64_t> opened_tables;
 
 // Open existing database file or create one if it doesn't exist
-int file_open_database_file(const char* pathname) { 
+int64_t file_open_table_file(const char* pathname) { 
+    //if table already opened
+    auto target = opened_tables.find((string)pathname);
+    if(target!=opened_tables.end()){
+        return target->second; 
+    }
+
     h_page_t header_page_buf;
     f_page_t free_page_buf;
     page_t page_buf;
@@ -50,14 +53,14 @@ int file_open_database_file(const char* pathname) {
             return -1;
         }
     }
-
-    global_fd = fileno(fp); 
-    return global_fd; 
+    
+    opened_tables.insert({pathname, fileno(fp)});
+    return fileno(fp); 
 }
 
 // Allocate an on-disk page from the free page list
-pagenum_t file_alloc_page(int fd) { 
-    FILE* fp = fdopen(fd, "rb+");  
+pagenum_t file_alloc_page(int64_t table_id) { 
+    FILE* fp = fdopen(table_id, "rb+");  
     h_page_t header_page_buf;
     f_page_t free_page_buf;
     page_t page_buf;
@@ -83,7 +86,7 @@ pagenum_t file_alloc_page(int fd) {
         fseek(fp, 0, SEEK_SET);
         fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
         fflush(fp);
-        fsync(fd);
+        fsync(table_id);
        
         //initialize page numbers and link free page list
         
@@ -91,12 +94,12 @@ pagenum_t file_alloc_page(int fd) {
         fseek(fp, prev_number_of_pages * PAGE_SIZE, SEEK_SET);
         fwrite(&free_page_buf, PAGE_SIZE, 1, fp);
         fflush(fp);
-        fsync(fd);
+        fsync(table_id);
         for(int i = 1; i<prev_number_of_pages; i++){
             free_page_buf.next_free_page_number = prev_number_of_pages + i - 1;
             fwrite(&free_page_buf, PAGE_SIZE, 1, fp);
             fflush(fp);
-            fsync(fd);
+            fsync(table_id);
         }
              
     }
@@ -110,16 +113,16 @@ pagenum_t file_alloc_page(int fd) {
     fseek(fp, 0, SEEK_SET);
     fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
     fflush(fp);
-    fsync(fd);
+    fsync(table_id);
 
     return allocated_page_number; 
 }
 
 // Free an on-disk page to the free page list
-void file_free_page(int fd, pagenum_t pagenum) {
+void file_free_page(int64_t table_id, pagenum_t pagenum) {
     h_page_t header_page_buf;
     f_page_t free_page_buf;
-    FILE* fp = fdopen(fd, "rb+");
+    FILE* fp = fdopen(table_id, "rb+");
 
     fseek(fp, 0, SEEK_SET);
     fread(&header_page_buf, PAGE_SIZE, 1, fp);
@@ -131,34 +134,37 @@ void file_free_page(int fd, pagenum_t pagenum) {
     fseek(fp, 0, SEEK_SET);
     fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
     fflush(fp);
-    fsync(fd);
+    fsync(table_id);
     
     // resets the page and connect to free page list
     free_page_buf.next_free_page_number = temp;
     fseek(fp, pagenum * PAGE_SIZE, SEEK_SET);
     fwrite(&free_page_buf, PAGE_SIZE, 1, fp);
     fflush(fp);
-    fsync(fd);
+    fsync(table_id);
 }
 
 // Read an on-disk page into the in-memory page structure(dest)
-void file_read_page(int fd, pagenum_t pagenum, struct page_t* dest) {
-    FILE* fp = fdopen(global_fd, "rb+");
+void file_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest) {
+    FILE* fp = fdopen(table_id, "rb+");
     fseek(fp, pagenum * PAGE_SIZE, SEEK_SET);
     fread(dest, PAGE_SIZE, 1, fp);
 }
 
 // Write an in-memory page(src) to the on-disk page
-void file_write_page(int fd, pagenum_t pagenum, const struct page_t* src) {
-    FILE* fp = fdopen(global_fd, "rb+");
+void file_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src) {
+    FILE* fp = fdopen(table_id, "rb+");
     fseek(fp, pagenum * PAGE_SIZE, SEEK_SET);
     fwrite(src, PAGE_SIZE, 1, fp);
     fflush(fp);
-    fsync(fd);
+    fsync(table_id);
 }
 
 // Close the database file
 void file_close_database_file() {
-    FILE* fp = fdopen(global_fd, "rb+");
-    fclose(fp); 
+    for(pair<string, int> file: opened_tables){
+        FILE* fp = fdopen(file.second, "rb+");
+        fclose(fp); 
+    }
+    opened_tables.clear();
 }

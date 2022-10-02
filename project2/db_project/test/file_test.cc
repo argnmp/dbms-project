@@ -30,17 +30,17 @@ class FileInitTest : public ::testing::Test {
 TEST(FileInitTest, HandlesInitialization){
 
     //Open database file
-    int fd;                                 
+    int64_t table_id;                                 
     std::string pathname = "init_test.db";  
-    fd = file_open_database_file(pathname.c_str());
+    table_id = file_open_table_file(pathname.c_str());
     
     
     //check if the database file is opened properly
-    ASSERT_TRUE(fd >= 0);  
+    ASSERT_TRUE(table_id >= 0);  
 
     // check if the allocated page is equal to initial number of pages stored in the head page;
     h_page_t header_page_buf; 
-    FILE* fp = fdopen(fd, "rb+");
+    FILE* fp = fdopen(table_id, "rb+");
     fseek(fp, 0, SEEK_SET);
     fread(&header_page_buf, PAGE_SIZE, 1, fp);
     ASSERT_EQ(header_page_buf.number_of_pages, INITIAL_DB_FILE_SIZE / PAGE_SIZE);
@@ -51,18 +51,18 @@ TEST(FileInitTest, HandlesInitialization){
 
 #if ExistFileInitSeries
 TEST(FileInitTest, ExistFileValidInit){
-    int fd;                                 // file descriptor
+    int64_t table_id;
     std::string pathname = "../../validdb.db";
-    fd = file_open_database_file(pathname.c_str()); 
+    table_id = file_open_table_file(pathname.c_str()); 
     file_close_database_file();
-    ASSERT_TRUE(fd >= 0);
+    ASSERT_TRUE(table_id >= 0);
 }
 TEST(FileInitTest, ExistFileInvalidInit){
-    int fd;                                 // file descriptor
+    int64_t table_id;
     std::string pathname = "../../invaliddb.db";
-    fd = file_open_database_file(pathname.c_str()); 
+    table_id = file_open_table_file(pathname.c_str()); 
     file_close_database_file();
-    ASSERT_TRUE(fd == -1);
+    ASSERT_TRUE(table_id == -1);
 }
 #endif
 
@@ -70,15 +70,15 @@ TEST(FileInitTest, ExistFileInvalidInit){
 
 class FileTest : public ::testing::Test {
  protected:
-  FileTest() { fd = file_open_database_file(pathname.c_str()); }
+  FileTest() { table_id = file_open_table_file(pathname.c_str()); }
 
   ~FileTest() {
-    if (fd >= 0) {
+    if (table_id >= 0) {
       file_close_database_file();
     }
   }
 
-  int fd;                
+  int64_t table_id;                
   std::string pathname = "init_test.db";
 };
 
@@ -90,15 +90,15 @@ TEST_F(FileTest, HandlesPageAllocation) {
     h_page_t header_page_buf;
     f_page_t free_page_buf;
 
-    FILE* fp = fdopen(fd, "rb+");
+    FILE* fp = fdopen(table_id, "rb+");
 
     // Allocate the pages 
     pagenum_t allocated_page, freed_page;
 
-    allocated_page = file_alloc_page(fd);
-    freed_page = file_alloc_page(fd);
+    allocated_page = file_alloc_page(table_id);
+    freed_page = file_alloc_page(table_id);
     // Free one page
-    file_free_page(fd, freed_page);
+    file_free_page(table_id, freed_page);
 
     // Traverse the free page list and check the existence of the freed/allocated
     // pages. You might need to open a few APIs soley for testing.
@@ -123,10 +123,10 @@ TEST_F(FileTest, HandlesPageAllocation) {
     ASSERT_TRUE(f1 && f2);
 
     // Free allocated page for other tests
-    file_free_page(fd, allocated_page);
+    file_free_page(table_id, allocated_page);
 }
 TEST_F(FileTest, ExtendFile) {
-    FILE* fp = fdopen(fd, "rb+");
+    FILE* fp = fdopen(table_id, "rb+");
     h_page_t header_page_buf;
     f_page_t free_page_buf;
     pagenum_t allocated;
@@ -138,11 +138,11 @@ TEST_F(FileTest, ExtendFile) {
         if(header_page_buf.free_page_number == 0){
             break;
         }
-        allocated = file_alloc_page(fd);
+        allocated = file_alloc_page(table_id);
     } 
 
     //test file size increases and free pages are linked
-    allocated = file_alloc_page(fd);
+    allocated = file_alloc_page(table_id);
     //GTEST_COUT(<<"allocated page: "<<allocated);
     fseek(fp, 0, SEEK_SET);
     fread(&header_page_buf, PAGE_SIZE, 1, fp);
@@ -157,7 +157,7 @@ TEST_F(FileTest, ExtendFile) {
         if(header_page_buf.free_page_number == 0){
             break;
         }
-        allocated = file_alloc_page(fd);
+        allocated = file_alloc_page(table_id);
         count++;
     } 
     ASSERT_EQ(count, header_page_buf.number_of_pages / 2 - 1);
@@ -243,7 +243,7 @@ TEST_F(FileTest, ExtendFileSeriesB) {
 #endif
     
 TEST_F(FileTest, FreePageTest){
-    FILE* fp = fdopen(fd, "rb+");
+    FILE* fp = fdopen(table_id, "rb+");
     h_page_t header_page_buf;
     h_page_t prev_header_page_buf;
     f_page_t free_page_buf;
@@ -254,10 +254,10 @@ TEST_F(FileTest, FreePageTest){
     // random test case
     pagenum_t allocated_pages[120];
     for(int i = 0; i<120; i++){
-        allocated_pages[i] = file_alloc_page(fd);  
+        allocated_pages[i] = file_alloc_page(table_id);  
     }
     for(int i = 30; i<110; i++){
-        file_free_page(fd, allocated_pages[i]);
+        file_free_page(table_id, allocated_pages[i]);
     }
     
     /*
@@ -289,11 +289,11 @@ TEST_F(FileTest, CheckReadWriteOperation){
     for(int i = 0; i<PAGE_SIZE; i++){
         src.data[i] = 65 + (i%26);
     } 
-    pagenum_t pagenum = file_alloc_page(fd);
-    file_write_page(fd, pagenum, &src);
+    pagenum_t pagenum = file_alloc_page(table_id);
+    file_write_page(table_id, pagenum, &src);
     
     page_t dest;
-    file_read_page(fd, pagenum, &dest);
+    file_read_page(table_id, pagenum, &dest);
     ASSERT_EQ(memcmp(src.data, dest.data, PAGE_SIZE), 0);
 }
 
