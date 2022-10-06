@@ -108,19 +108,9 @@ int Node::leaf_find(int64_t key, char* ret_val, uint16_t* val_size){
         if(tmp.get_key()==key){
             memcpy(ret_val, leaf_ptr->data + tmp.get_offset(), sizeof(uint8_t)* tmp.get_size());
             *val_size = tmp.get_size();
-            /*
-            printf("found: ");
-            for(int i = 0; i<*val_size; i++){
-                printf("%c",ret_val[i]);
-            }
-            printf("\n");
-            */
             return 0;
         }
     }
-    /*
-    printf("not found\n");
-    */
     return -1;
 
 }
@@ -192,8 +182,8 @@ int Node::internal_find_kpn(int64_t key){
     return -1;
 }
 int Node::internal_insert(int64_t key, pagenum_t pagenum){
-    printf("input key : %d\n", key);
-    printf("internal num key :%d\n", internal_ptr->number_of_keys);
+    //printf("input key : %d\n", key);
+    //printf("internal num key :%d\n", internal_ptr->number_of_keys);
     if(internal_find_kpn(key)==0){
         return -2;
     } 
@@ -271,13 +261,12 @@ Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
     //traverse, using node poitner, important!!!!
     Node* cursor = new Node(table_id, root);
     while(!cursor->isLeaf()){
-        /* not implemented */
         int i = 0;
         kpn_t tmp;
         pagenum_t next_pagenum = cursor->internal_ptr->one_more_page_number;
         while (i < cursor->internal_ptr->number_of_keys){
             tmp = cursor->internal_get_kpn_index(i);
-            if (key > tmp.get_key()){
+            if (key >= tmp.get_key()){
                 i++;
                 next_pagenum = tmp.get_pagenum();
             }
@@ -333,16 +322,16 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
         return -1;
     }
     else {
-        cout << "parent split!" << endl;
+        //cout << "parent split!" << endl;
         //split parent and insert 
         Node cinternal = parent;
         Node new_internal(false, table_id);
         parent.default_page.number_of_keys = 0;
         new_internal.default_page.parent_page_number = cinternal.default_page.parent_page_number;
-        DPT
+        //DPT
 
         int split_point = cinternal.default_page.number_of_keys / 2;
-        printf("splitpoint! : %d\n",split_point);
+        //printf("splitpoint! : %d\n",split_point);
         int i;
         bool new_key_flag = true; 
         int64_t k_prime;
@@ -404,7 +393,7 @@ int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
     }
 
     Node target_leaf = find_leaf(table_id, header_node.root_page_number, key);
-    target_leaf.leaf_print_all(); 
+    //target_leaf.leaf_print_all(); 
 
     int result = target_leaf.leaf_insert(key, value, val_size);
     if(result==0){
@@ -416,7 +405,7 @@ int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
         return 0;
     }
     else {
-        printf("split!\n");
+        //printf("split!\n");
         //split and insert into leaf.
         Node cleaf = target_leaf; 
         Node new_leaf(true, table_id);

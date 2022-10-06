@@ -1,6 +1,8 @@
 #include "bpt.h"
 #include "dbpt.h"
 #include "db.h"
+#include <random>
+#include <algorithm>
 using namespace std;
 
 // MAIN
@@ -9,20 +11,69 @@ int main( int argc, char ** argv ) {
     string pathname = "test.db"; 
     int64_t table_id = open_table(pathname.c_str()); 
 
-    for(int i = 100; i>0; i--){
-        string value = "even world" + to_string(i);
-        db_insert(table_id, i*2, value.c_str(), value.length());
     print_tree(table_id, false);
+    
+    /*
+    string value = "thisisneverthat";
+    db_insert(table_id, -234, value.c_str(), value.length());
+    db_insert(table_id, 234, value.c_str(), value.length());
+    print_tree(table_id, false);
+    */
+
+     //bulk test
+    for(int i = 0; i<=20000; i++){
+        string value = "thisisvalue" + to_string(i);
+        db_insert(table_id, i, value.c_str(), value.length());
     }
-    for(int i = 100; i>0; i--){
-        string value = "odd world" + to_string(i);
-        db_insert(table_id, i*2-1, value.c_str(), value.length());
-    print_tree(table_id, false);
+    print_tree(table_id, false); 
+    int acc = 0;
+    for(int i = 0; i<=20000; i++){
+        char ret_val[200];
+        uint16_t val_size;
+        int result = db_find(table_id, i, ret_val, &val_size); 
+        if(result == 0){
+            acc++;
+            printf("key: %d, value: ",i);
+            for(int i = 0; i<val_size; i++){
+                printf("%c", ret_val[i]);
+            }
+            printf("\n");
+        }
+    }
+    printf("total keys: %d", acc);
+
+    /* //random test
+    random_device rd;
+    mt19937 mt(rd());
+    uniform_int_distribution<int> range(0, 99);
+    
+    vector<int> rands;
+    for(int i = 0; i<=50; i++){
+        int val = range(mt);
+        rands.push_back(val);
+        string value = "thisisvalue" + to_string(val);
+        db_insert(table_id, val, value.c_str(), value.length());
     }
     
-    
-    string value = "insertion_test";
     print_tree(table_id, false);
+    
+    for(int i: rands){
+        printf("%d,",i);
+    }
+    cout<<endl;
+    for(int i = 0; i<=100; i++){
+        char ret_val[200];
+        uint16_t val_size;
+        int result = db_find(table_id, i, ret_val, &val_size); 
+        if(result == 0){
+            printf("key: %d, value: ",i);
+            for(int i = 0; i<val_size; i++){
+                printf("%c", ret_val[i]);
+            }
+            printf("\n");
+        }
+    }
+    */
     
 
     /*

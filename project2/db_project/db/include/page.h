@@ -16,6 +16,11 @@ using namespace std;
 #define SPLIT_THRESHOLD 70 //1984
 #define TEST_INSERTION_THRESHOLD 3798 //if test ends, this should be deleted
 #define TEST_INTERNAL_INSERTION_THRESHOLD 242 //if test ends, this should be deleted
+/*
+#define SPLIT_THRESHOLD 1984 //1984
+#define TEST_INSERTION_THRESHOLD 0 //if test ends, this should be deleted
+#define TEST_INTERNAL_INSERTION_THRESHOLD 0 //if test ends, this should be deleted
+*/
 
 typedef uint64_t pagenum_t;
 
