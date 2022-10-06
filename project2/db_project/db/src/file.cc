@@ -34,6 +34,7 @@ int64_t file_open_table_file(const char* pathname) {
         header_page_buf.magic_number = 2022;
         header_page_buf.free_page_number = total_index-1;
         header_page_buf.number_of_pages = total_index;
+        header_page_buf.root_page_number = 0;
         fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
         fflush(fp);
         fsync(fileno(fp));

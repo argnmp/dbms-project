@@ -1,9 +1,31 @@
 #include "bpt.h"
+#include "dbpt.h"
+#include "db.h"
+using namespace std;
 
 // MAIN
 
 int main( int argc, char ** argv ) {
+    string pathname = "test.db"; 
+    int64_t table_id = open_table(pathname.c_str()); 
 
+    for(int i = 100; i>0; i--){
+        string value = "even world" + to_string(i);
+        db_insert(table_id, i*2, value.c_str(), value.length());
+    print_tree(table_id, false);
+    }
+    for(int i = 100; i>0; i--){
+        string value = "odd world" + to_string(i);
+        db_insert(table_id, i*2-1, value.c_str(), value.length());
+    print_tree(table_id, false);
+    }
+    
+    
+    string value = "insertion_test";
+    print_tree(table_id, false);
+    
+
+    /*
     char * input_file;
     FILE * fp;
     node * root;
@@ -95,6 +117,7 @@ int main( int argc, char ** argv ) {
         printf("> ");
     }
     printf("\n");
+    */
 
     return EXIT_SUCCESS;
 }
