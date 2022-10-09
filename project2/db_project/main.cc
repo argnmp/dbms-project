@@ -1,4 +1,3 @@
-#include "bpt.h"
 #include "dbpt.h"
 #include "db.h"
 #include <random>
@@ -6,8 +5,28 @@
 using namespace std;
 
 // MAIN
+void usage_2( void ) {
+    printf("Enter any of the following commands after the prompt > :\n"
+    "\ti <k>  -- Insert <k> (an integer) as both key and value).\n"
+    "\tf <k>  -- Find the value under key <k>.\n"
+    "\tp <k> -- Print the path from the root to key k and its associated "
+           "value.\n"
+    "\tr <k1> <k2> -- Print the keys and values found in the range "
+            "[<k1>, <k2>\n"
+    "\td <k>  -- Delete key <k> and its associated value.\n"
+    "\tx -- Destroy the whole tree.  Start again with an empty tree of the "
+           "same order.\n"
+    "\tt -- Print the B+ tree.\n"
+    "\tl -- Print the keys of the leaves (bottom row of the tree).\n"
+    "\tv -- Toggle output of pointer addresses (\"verbose\") in tree and "
+           "leaves.\n"
+    "\tq -- Quit. (Or use Ctl-D.)\n"
+    "\t? -- Print this help message.\n");
+}
 
 int main( int argc, char ** argv ) {
+
+    /*
     string pathname = "test.db"; 
     int64_t table_id = open_table(pathname.c_str()); 
     
@@ -28,6 +47,7 @@ int main( int argc, char ** argv ) {
     print_tree(table_id, true);
 
     cout<< "free pages: " << free_page_count(table_id) << endl;
+    */
 
     
     /*
@@ -95,99 +115,103 @@ int main( int argc, char ** argv ) {
     */
     
 
-    /*
-    char * input_file;
-    FILE * fp;
-    node * root;
     int input, range2;
     char instruction;
-    char license_part;
 
-    root = NULL;
-    verbose_output = false;
+    string table_name;
+    int64_t table_id = -1;
+    int64_t input_key;
+    string input_value;
+    bool pagenum_toggle = false;
+    char value[120];
+    uint16_t val_size;
 
-    if (argc > 1) {
-        order = atoi(argv[1]);
-        if (order < MIN_ORDER || order > MAX_ORDER) {
-            fprintf(stderr, "Invalid order: %d .\n\n", order);
-            usage_3();
-            exit(EXIT_FAILURE);
-        }
-    }
+    int result;
 
-    license_notice();
-    usage_1();  
-    usage_2();
-
-    if (argc > 2) {
-        input_file = argv[2];
-        fp = fopen(input_file, "r");
-        if (fp == NULL) {
-            perror("Failure  open input file.");
-            exit(EXIT_FAILURE);
-        }
-        while (!feof(fp)) {
-            fscanf(fp, "%d\n", &input);
-            root = insert(root, input, input);
-        }
-        fclose(fp);
-        print_tree(root);
-    }
 
     printf("> ");
     while (scanf("%c", &instruction) != EOF) {
         switch (instruction) {
+        case 'u':
+            cin >> table_name;
+            table_id = open_table(table_name.c_str()); 
+            printf("Switched to table %s\n", table_name.c_str());
+            break;
         case 'd':
-            scanf("%d", &input);
-            root = db_delete(root, input);
-            print_tree(root);
+            if(table_id == -1) {
+                printf("Specify table name\n");
+                break;
+            }
+            scanf("%ld", &input_key);
+            db_delete(table_id, input_key); 
+            print_tree(table_id, pagenum_toggle);
             break;
         case 'i':
-            scanf("%d", &input);
-            root = insert(root, input, input);
-            print_tree(root);
+            if(table_id == -1) {
+                printf("Specify table name\n");
+                break;
+            }
+            scanf("%ld", &input_key);
+            cin >> input_value;
+            db_insert(table_id, input_key, input_value.c_str(), input_value.length());
+            print_tree(table_id, pagenum_toggle);
             break;
         case 'f':
-        case 'p':
-            scanf("%d", &input);
-            find_and_print(root, input, instruction == 'p');
+            if(table_id == -1) {
+                printf("Specify table name\n");
+                break;
+            }
+            scanf("%ld", &input_key);
+            result = db_find(table_id, input_key, value, &val_size);
+            if(result == -1){
+                printf("Specified key is not in the table \n");
+                break;
+            }
+            for(int i = 0; i<val_size; i++){
+                printf("%c",value[i]);
+            } 
+            printf("\n");
             break;
         case 'r':
             scanf("%d %d", &input, &range2);
-            if (input > range2) {
-                int tmp = range2;
-                range2 = input;
-                input = tmp;
-            }
-            find_and_print_range(root, input, range2, instruction == 'p');
+            printf("not implemented");
             break;
         case 'l':
-            print_leaves(root);
+            printf("not implemented");
             break;
         case 'q':
             while (getchar() != (int)'\n');
+            shutdown_db(); 
             return EXIT_SUCCESS;
             break;
         case 't':
-            print_tree(root);
+            if(result == -1){
+                printf("Specified key is not in the table \n");
+                break;
+            }
+            print_tree(table_id, pagenum_toggle);
             break;
         case 'v':
-            verbose_output = !verbose_output;
+            pagenum_toggle = !pagenum_toggle;
+            if(pagenum_toggle){
+                printf("Changed to print page numbers of tree");
+            }
+            else {
+                printf("Changed not to print page numbers of tree");
+            }
             break;
         case 'x':
-            if (root)
-                root = destroy_tree(root);
-            print_tree(root);
+            printf("not implemented");
             break;
         default:
             usage_2();
             break;
         }
         while (getchar() != (int)'\n');
+        cout<<table_name;
         printf("> ");
     }
     printf("\n");
-    */
 
     return EXIT_SUCCESS;
 }

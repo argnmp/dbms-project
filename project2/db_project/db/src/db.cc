@@ -21,3 +21,8 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size){
 int db_delete(int64_t table_id, int64_t key){
     return dbpt_delete(table_id, key);
 }
+
+int shutdown_db(){
+    file_close_database_file();
+    return 0;
+}
