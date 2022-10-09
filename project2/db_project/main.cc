@@ -10,8 +10,25 @@ using namespace std;
 int main( int argc, char ** argv ) {
     string pathname = "test.db"; 
     int64_t table_id = open_table(pathname.c_str()); 
-
+    
+    cout << "after open_table" << endl;
+    cout<< "free pages: " << free_page_count(table_id) << endl;
+    
     print_tree(table_id, false);
+    for(int i = 0; i<=10000; i++){
+        string value = "thisisvalue" + to_string(i);
+        db_insert(table_id, i, value.c_str(), value.length());
+    }
+    print_tree(table_id, false);
+    cout<< "free pages: " << free_page_count(table_id) << endl;
+
+    for(int i = 5; i<=9995; i++){
+        db_delete(table_id, i);
+    }
+    print_tree(table_id, true);
+
+    cout<< "free pages: " << free_page_count(table_id) << endl;
+
     
     /*
     string value = "thisisneverthat";
@@ -20,14 +37,14 @@ int main( int argc, char ** argv ) {
     print_tree(table_id, false);
     */
 
-     //bulk test
-    for(int i = 0; i<=20000; i++){
+    /*//bulk test
+    for(int i = 0; i<=2000; i++){
         string value = "thisisvalue" + to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
     print_tree(table_id, false); 
     int acc = 0;
-    for(int i = 0; i<=20000; i++){
+    for(int i = 0; i<=2000; i++){
         char ret_val[200];
         uint16_t val_size;
         int result = db_find(table_id, i, ret_val, &val_size); 
@@ -41,6 +58,8 @@ int main( int argc, char ** argv ) {
         }
     }
     printf("total keys: %d", acc);
+    */
+    
 
     /* //random test
     random_device rd;

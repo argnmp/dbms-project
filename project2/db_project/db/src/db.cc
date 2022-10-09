@@ -17,3 +17,7 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size){
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
     return leaf.leaf_find(key, ret_val, val_size);
 }
+
+int db_delete(int64_t table_id, int64_t key){
+    return dbpt_delete(table_id, key);
+}

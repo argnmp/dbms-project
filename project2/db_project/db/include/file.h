@@ -26,4 +26,7 @@ void file_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* s
 // Close the database file
 void file_close_database_file();
 
+// Checking functions
+uint64_t free_page_count(int64_t table_id);
+
 #endif  // DB_FILE_H_

@@ -47,6 +47,22 @@ Node::Node(int64_t table_id, pagenum_t pagenum){
     pn = pagenum;
     is_on_disk = true;
 }
+Node& Node::operator=(const Node& n){
+    tid = n.tid;
+    pn = n.pn;
+    is_on_disk = n.is_on_disk;
+    default_page.parent_page_number = n.default_page.parent_page_number;
+    default_page.is_leaf = n.default_page.is_leaf;
+    default_page.number_of_keys = n.default_page.number_of_keys;
+    memcpy(default_page.reserved, n.default_page.reserved, sizeof(default_page.reserved));
+    memcpy(default_page.data, n.default_page.data, sizeof(default_page.data));
+    if(isLeaf()){
+        leaf_ptr = (leaf_page_t*) &default_page; 
+    }
+    else {
+        internal_ptr = (internal_page_t*) &default_page; 
+    }
+}
 Node::~Node(){
     //printf("freed %d %d page on memory\n", tid, pn);
 }
@@ -68,7 +84,7 @@ int Node::leaf_insert(int64_t key, const char* value, uint16_t val_size){
     if(leaf_find_slot(key)==0){
         return -2;
     }
-    if(leaf_ptr->amount_of_free_space - TEST_INSERTION_THRESHOLD < SLOT_SIZE + val_size){
+    if(leaf_ptr->amount_of_free_space < SLOT_SIZE + val_size){
         return -1;
     }
     
@@ -99,6 +115,20 @@ int Node::leaf_insert(int64_t key, const char* value, uint16_t val_size){
     leaf_ptr->number_of_keys += 1;
     //printf("key: %lld, size: %lld, offset: %lld\n",slot.get_key(), slot.get_size(), slot.get_offset());
     //printf("amount of free space after : %d",leaf_ptr->amount_of_free_space);
+    return 0;
+}
+int Node::leaf_append_unsafe(int64_t key, const char* value, uint16_t val_size){
+    if(leaf_ptr->amount_of_free_space < SLOT_SIZE + val_size){
+        return -1;
+    }
+    slot_t slot;
+    slot.set_key(key);
+    slot.set_offset(leaf_ptr->amount_of_free_space + SLOT_SIZE * leaf_ptr -> number_of_keys - val_size);   
+    slot.set_size(val_size);
+    memcpy(leaf_ptr->data + (leaf_ptr->number_of_keys)*SLOT_SIZE, &slot, sizeof(slot));
+    memcpy(leaf_ptr->data + slot.get_offset(), value, sizeof(uint8_t)*val_size);
+    leaf_ptr->amount_of_free_space -= SLOT_SIZE + val_size;
+    leaf_ptr->number_of_keys += 1;
     return 0;
 }
 int Node::leaf_find(int64_t key, char* ret_val, uint16_t* val_size){
@@ -148,6 +178,50 @@ void Node::leaf_move_value(char* dest, uint16_t size, uint16_t offset){
     memcpy(dest, leaf_ptr->data + offset, sizeof(uint8_t)*size);
 }
 
+void Node::leaf_remove_unsafe(int64_t key){
+      
+    // remove one slot and pack all the values to the end of the page.
+    Node copy = *this;
+
+    // reset the leaf node and re-insert except for the key
+    leaf_ptr->number_of_keys = 0;
+    leaf_ptr->amount_of_free_space = PAGE_SIZE - PAGE_HEADER_SIZE;
+    for(int i = 0; i<copy.leaf_ptr->number_of_keys; i++){
+        slot_t tmp;
+        //change for leaf_move_slot
+        memcpy(&tmp, copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
+        if(tmp.get_key() == key) continue;
+        char ret_val[120];
+        copy.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
+        leaf_append_unsafe(tmp.get_key(), ret_val, tmp.get_size());
+    }
+    
+}
+void Node::leaf_pack_values(int from, int to){
+
+    Node leaf_copy = *this;
+    // reset the leaf node and re-insert to pack values;
+    leaf_ptr->number_of_keys = 0;
+    leaf_ptr->amount_of_free_space = PAGE_SIZE - PAGE_HEADER_SIZE;
+
+    for(int i = from; i<=to; i++){
+        slot_t tmp;
+        //change for leaf_move_slot
+        memcpy(&tmp, leaf_copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
+        char ret_val[120];
+        leaf_copy.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
+        leaf_append_unsafe(tmp.get_key(), ret_val, tmp.get_size());
+    }
+}
+int Node::internal_append_unsafe(int64_t key, pagenum_t pagenum){
+    if(internal_ptr->number_of_keys >=MAX_KPN_NUMBER){
+        return -1;
+    }
+    internal_set_kpn_index(key, pagenum, internal_ptr->number_of_keys);
+    internal_ptr->number_of_keys += 1;
+    return 0;
+}
+
 void Node::internal_set_leftmost_pagenum(pagenum_t pagenum){
     internal_ptr->one_more_page_number = pagenum;
 }   
@@ -187,7 +261,7 @@ int Node::internal_insert(int64_t key, pagenum_t pagenum){
     if(internal_find_kpn(key)==0){
         return -2;
     } 
-    if(internal_ptr->number_of_keys >=248 - TEST_INTERNAL_INSERTION_THRESHOLD){
+    if(internal_ptr->number_of_keys >=MAX_KPN_NUMBER){
         return -1;
     }
     int i;
@@ -209,9 +283,38 @@ int Node::internal_insert(int64_t key, pagenum_t pagenum){
     return 0;
 }
 
+void Node::internal_remove_unsafe(int64_t key){
+    bool find_flag = false;
+    int i;
+    for(i = 0; i<internal_ptr->number_of_keys; i++){
+        kpn_t tmp;
+        tmp = internal_get_kpn_index(i);
+        if(tmp.get_key() == key) break;
+    }
+    int deletion_point = i;
+    for(int k = deletion_point + 1; k<internal_ptr->number_of_keys; k++){
+        kpn_t tmp;
+        tmp = internal_get_kpn_index(k);
+        internal_set_kpn_index(tmp.get_key(), tmp.get_pagenum(), k-1); 
+    }
+    internal_ptr->number_of_keys -= 1;
+}
+
 
 bool Node::isLeaf(){
     return default_page.is_leaf;
+}
+
+pagenum_t get_root_pagenum(int64_t table_id){
+    h_page_t header_node;
+    file_read_page(table_id, 0, (page_t*) &header_node);      
+    return header_node.root_page_number;
+}
+void set_root_pagenum(int64_t table_id, pagenum_t pagenum){
+    h_page_t header_node;
+    file_read_page(table_id, 0, (page_t*) &header_node);      
+    header_node.root_page_number = pagenum;
+    file_write_page(table_id, 0, (page_t*) &header_node);      
 }
 
 void print_tree(int64_t table_id, bool pagenum_p){
@@ -462,8 +565,301 @@ int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
         return 0;
     }
 }
+void coalesce_nodes(int64_t table_id, Node target, Node neighbor, int neighbor_index, int64_t cur_key_prime, int key_prime_index){
+    /* 
+     * if the target node is leftmost child in parent, swap target node with neighbor node.
+     * Because all the entries of target node can be pushed to neighbor node, all the entries of neighbor node can be pushed to target node.
+     */ 
+    //printf("colaesce! cur_key_prime: %d, key_prime_index: %d\n",cur_key_prime, key_prime_index);
+    
+    if(neighbor_index==-1){
+        Node tmp = target;
+        target = neighbor;
+        neighbor = tmp;
+    }
 
-void test(int64_t table_id){
-    Node a(true, table_id);
-    a.write_to_disk();
+    /*
+     * case : internal node
+     * append all kpn from target node to neighbor node
+     */
+    if(!target.isLeaf()){
+        //neighbor.internal_print_all();
+        //target.internal_print_all();
+        // first append k_prime
+        neighbor.internal_append_unsafe(cur_key_prime, target.internal_ptr->one_more_page_number);
+        for(int i = 0; i<target.internal_ptr->number_of_keys; i++){
+            kpn_t tmp = target.internal_get_kpn_index(i);
+            neighbor.internal_append_unsafe(tmp.get_key(), tmp.get_pagenum());
+        }
+        // refresh child's parent page number
+        for(int i = 0; i<neighbor.internal_ptr->number_of_keys; i++){
+            kpn_t tmp = neighbor.internal_get_kpn_index(i);
+            Node child(table_id, tmp.get_pagenum());
+            child.default_page.parent_page_number = neighbor.pn;
+            child.write_to_disk();
+        }
+    }
+    /*
+     * case :leaf node
+     * append all slots and values from target node to neighbor node
+     */
+    else {
+        //neighbor.leaf_print_all();
+        //target.leaf_print_all();
+        for(int i = 0; i<target.leaf_ptr->number_of_keys; i++){
+            slot_t tmp;
+            target.leaf_move_slot(&tmp, i);
+            char ret_val[120];
+            target.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
+            neighbor.leaf_append_unsafe(tmp.get_key(), ret_val, tmp.get_size());
+        }
+        neighbor.leaf_ptr->right_sibling_page_number = target.leaf_ptr->right_sibling_page_number;
+    }
+
+    // modification of nodes finish, and the neighbor node will not be modified again.
+    // so write the neighbor node to disk
+    neighbor.write_to_disk();
+    Node parent(table_id, target.default_page.parent_page_number);
+    delete_entry(table_id, parent, cur_key_prime);
+    //after deleteing entry from the parent node, free the merged page
+    file_free_page(table_id, target.pn);
+}
+
+void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbor, int neighbor_index, int64_t cur_key_prime, int key_prime_index){
+    /*
+     * case: neighbor node is the left of the target node
+     */ 
+    // k prime index is the index of kpn which contains k_prime
+    if (neighbor_index != -1){
+        //pull entries until it reaches the minimum free space threshold
+        if(target.isLeaf()){
+            // 아마 일어나진 않겠지만 혹시모르니 1개 키는 남겨두도록 하자
+            for(int i = neighbor.leaf_ptr->number_of_keys - 1; i>0; i--){
+                slot_t tmp;
+                neighbor.leaf_move_slot(&tmp, i);
+                char ret_val[120];
+                neighbor.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
+                neighbor.leaf_ptr->number_of_keys -= 1;
+                
+                target.leaf_insert(tmp.get_key(), ret_val, tmp.get_size());
+                if(target.leaf_ptr->amount_of_free_space < DELETE_MODIFICATION_THRESHOLD){
+                    break;
+                }
+            }
+            neighbor.leaf_pack_values(0, neighbor.leaf_ptr->number_of_keys -1);
+            slot_t tmp;
+            target.leaf_move_slot(&tmp, 0);
+            kpn_t kpn = parent.internal_get_kpn_index(key_prime_index);
+            parent.internal_set_kpn_index(tmp.get_key(), kpn.get_pagenum(), key_prime_index);
+        }
+        else {
+            for(int i = neighbor.internal_ptr->number_of_keys -1; i>0; i--){
+                kpn_t rightmost_kpn = neighbor.internal_get_kpn_index(i);
+                kpn_t new_kpn;
+                new_kpn.set_key(cur_key_prime);
+                new_kpn.set_pagenum(target.internal_ptr->one_more_page_number);
+                cur_key_prime = rightmost_kpn.get_key();
+                target.internal_ptr->one_more_page_number = rightmost_kpn.get_pagenum();
+                target.internal_insert(new_kpn.get_key(), new_kpn.get_pagenum());
+
+                Node new_child(table_id, rightmost_kpn.get_pagenum());
+                new_child.default_page.parent_page_number = target.pn;
+                new_child.write_to_disk();
+
+                neighbor.internal_ptr->number_of_keys -= 1;
+                if(PAGE_SIZE - PAGE_HEADER_SIZE - (int)(target.internal_ptr->number_of_keys) * KPN_SIZE < DELETE_MODIFICATION_THRESHOLD){
+                    break;
+                }
+            }
+            kpn_t kpn = parent.internal_get_kpn_index(key_prime_index);
+            kpn.set_key(cur_key_prime);
+            parent.internal_set_kpn_index(kpn.get_key(), kpn.get_pagenum(), key_prime_index);
+            
+        }
+    } 
+    else {
+        if(target.isLeaf()){
+            int i;
+            for(i = 0; i<neighbor.leaf_ptr->number_of_keys; i++){
+                slot_t tmp;
+                neighbor.leaf_move_slot(&tmp, i);
+                char ret_val[120];
+                neighbor.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
+
+                target.leaf_append_unsafe(tmp.get_key(),ret_val,tmp.get_size());
+                if(target.leaf_ptr->amount_of_free_space < DELETE_MODIFICATION_THRESHOLD){
+                    break;
+                } 
+            }
+            neighbor.leaf_pack_values(i+1, neighbor.leaf_ptr->number_of_keys-1);
+            slot_t tmp;
+            neighbor.leaf_move_slot(&tmp, 0);
+            kpn_t kpn = parent.internal_get_kpn_index(key_prime_index);
+            parent.internal_set_kpn_index(tmp.get_key(), kpn.get_pagenum(), key_prime_index);
+        }
+        else {
+            int i;
+            for(i = 0; i<neighbor.leaf_ptr->number_of_keys -1; i++){
+                kpn_t leftmost_kpn = neighbor.internal_get_kpn_index(i);
+                kpn_t new_kpn;
+                new_kpn.set_key(cur_key_prime);
+                new_kpn.set_pagenum(neighbor.internal_ptr->one_more_page_number);
+                cur_key_prime = leftmost_kpn.get_key();
+                neighbor.internal_ptr->one_more_page_number = leftmost_kpn.get_pagenum(); 
+                target.internal_append_unsafe(new_kpn.get_key(), new_kpn.get_pagenum());
+
+                Node child(table_id, new_kpn.get_pagenum());
+                child.default_page.parent_page_number = target.pn;
+                child.write_to_disk();
+
+                if(PAGE_SIZE - PAGE_HEADER_SIZE - (int)(target.internal_ptr->number_of_keys) * KPN_SIZE < DELETE_MODIFICATION_THRESHOLD){
+                    break;
+                } 
+            }    
+            Node copy = neighbor;
+            neighbor.internal_ptr->number_of_keys = 0;
+            for(int k = i+1; k<copy.internal_ptr->number_of_keys; k++){
+                kpn_t tmp = copy.internal_get_kpn_index(k);
+                neighbor.internal_append_unsafe(tmp.get_key(), tmp.get_pagenum());    
+            }
+            kpn_t kpn = parent.internal_get_kpn_index(key_prime_index);
+            kpn.set_key(cur_key_prime);
+            parent.internal_set_kpn_index(kpn.get_key(), kpn.get_pagenum(), key_prime_index);
+            
+        }
+    }
+
+    parent.write_to_disk();
+    neighbor.write_to_disk();
+    target.write_to_disk();
+}
+
+void delete_entry(int64_t table_id, Node target, int64_t key){
+    //printf("delete entry! key: %d\n",key);
+    // remove slot and value 
+    if(target.isLeaf()==1){
+        //printf("target node\n");
+        //target.leaf_print_all();
+        target.leaf_remove_unsafe(key);
+    }
+    else {
+        //printf("target node\n");
+        //target.internal_print_all();
+        target.internal_remove_unsafe(key); 
+    }
+    //can this be optimized?
+    target.write_to_disk();
+
+    // case : target node is the root 
+    if(target.pn == get_root_pagenum(table_id)){
+        // case : nonempty root
+        if (target.default_page.number_of_keys > 0){
+            return;
+        }
+        
+        // case : empty root
+        // if the node is internal node which means that there are only one child in the root
+        if (!target.isLeaf()){
+            Node child(table_id, target.internal_ptr->one_more_page_number);
+            child.default_page.parent_page_number = 0;
+            set_root_pagenum(table_id, child.pn); 
+            child.write_to_disk();
+            file_free_page(table_id, target.pn);
+        }
+        //if the node is leaf node which means only one node exists in the tree. 
+        else {
+            file_free_page(table_id, target.pn);
+            set_root_pagenum(table_id, 0);
+        }
+        return;
+    }
+
+    uint64_t free_space;
+    if(target.isLeaf()){
+        free_space = target.leaf_ptr->amount_of_free_space;
+    }
+    else {
+        free_space = ( MAX_KPN_NUMBER - target.internal_ptr->number_of_keys ) * KPN_SIZE;
+    }
+
+    if(free_space < DELETE_MODIFICATION_THRESHOLD){
+        return;
+    }
+
+    /*
+     * node should be merged or if impossible, redistribute.
+     */
+
+    //find neighbor 이부분에 오류가 있을수도 있다.
+    Node parent(table_id, target.default_page.parent_page_number);
+    //parent is always internal node not leaf.
+    int i;
+    if(parent.internal_ptr->one_more_page_number == target.pn){
+        i = -1;
+    }
+    else {
+        for(i = 0; i<parent.internal_ptr->number_of_keys; i++){
+            kpn_t tmp = parent.internal_get_kpn_index(i);
+            if(tmp.get_pagenum() == target.pn){
+                break;
+            }
+        }
+    }
+    int neighbor_index = i;
+    kpn_t tmp = parent.internal_get_kpn_index(neighbor_index);
+    pagenum_t neighbor_pagenum;
+    if(neighbor_index == -1){
+        neighbor_pagenum = parent.internal_get_kpn_index(0).get_pagenum();
+    }
+    else {
+        //neighbor pagenum is stored in i-1
+        if(neighbor_index == 0){
+            neighbor_pagenum = parent.internal_ptr->one_more_page_number;
+        }
+        else {
+            kpn_t tmp = parent.internal_get_kpn_index(neighbor_index-1);
+            neighbor_pagenum = tmp.get_pagenum();
+        }
+    }
+    // key_prime_index is the index of the kpn which should store the key_prime.
+    int key_prime_index = neighbor_index == -1 ? 0 : neighbor_index;
+    int cur_key_prime = parent.internal_get_kpn_index(key_prime_index).get_key();
+
+    // coalescence or redistribution
+    Node neighbor(table_id, neighbor_pagenum);
+    // re-think about the possibility of merge;
+    bool can_be_merged = false;
+    if(target.isLeaf()){
+        if((int)(neighbor.leaf_ptr->amount_of_free_space) >= (PAGE_SIZE - PAGE_HEADER_SIZE - (int)(target.leaf_ptr->amount_of_free_space)))
+            can_be_merged = true;
+    }
+    else {
+        //there should be one more kpn space because new kpn that has k_prime should be inserted.
+        if((MAX_KPN_NUMBER - (int)(neighbor.internal_ptr->number_of_keys) - 1) >= (int)(target.internal_ptr->number_of_keys))
+            can_be_merged = true;
+    }
+    if(can_be_merged){
+        coalesce_nodes(table_id, target, neighbor, neighbor_index, cur_key_prime, key_prime_index);
+    }
+    else {
+        redistribute_nodes(table_id, parent, target, neighbor, neighbor_index, cur_key_prime, key_prime_index);
+    }
+
+
+}
+
+int dbpt_delete(int64_t table_id, int64_t key){
+    h_page_t header_node;
+    file_read_page(table_id, 0, (page_t*) &header_node);      
+
+    if(header_node.root_page_number==0){
+        cout << "tree is empty" << endl;
+        return -1;
+    }
+    Node leaf = find_leaf(table_id, header_node.root_page_number, key);
+    if(leaf.leaf_find_slot(key)==0){
+        delete_entry(table_id, leaf, key);
+        return 0;
+    }
+    return -1;
 }

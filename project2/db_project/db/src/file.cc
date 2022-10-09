@@ -169,3 +169,24 @@ void file_close_database_file() {
     }
     opened_tables.clear();
 }
+
+
+uint64_t free_page_count(int64_t table_id){
+    FILE* fp = fdopen(table_id, "rb+");
+    h_page_t header_page_buf;
+    f_page_t free_page_buf;
+    uint64_t count = 0;
+    fseek(fp, 0, SEEK_SET);
+    fread(&header_page_buf, PAGE_SIZE, 1, fp);
+    pagenum_t npm = header_page_buf.free_page_number;
+    while(1){
+        fseek(fp, npm * PAGE_SIZE, SEEK_SET);
+        fread(&free_page_buf, PAGE_SIZE, 1, fp);
+        count += 1;
+        npm = free_page_buf.next_free_page_number;
+        if(npm == 0){
+            break;
+        }
+    } 
+    return count;
+}

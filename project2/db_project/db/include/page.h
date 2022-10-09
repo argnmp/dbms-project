@@ -16,11 +16,21 @@ using namespace std;
 #define SPLIT_THRESHOLD 70 //1984
 #define TEST_INSERTION_THRESHOLD 3798 //if test ends, this should be deleted
 #define TEST_INTERNAL_INSERTION_THRESHOLD 242 //if test ends, this should be deleted
+
+#define MAX_KPN_NUMBER 248
+#define DELETE_MODIFICATION_THRESHOLD 2500
 /*
-#define SPLIT_THRESHOLD 1984 //1984
-#define TEST_INSERTION_THRESHOLD 0 //if test ends, this should be deleted
-#define TEST_INTERNAL_INSERTION_THRESHOLD 0 //if test ends, this should be deleted
+#define INITIAL_DB_FILE_SIZE 573440 
+#define PAGE_SIZE (224)                     // 224bytes
+#define PAGE_HEADER_SIZE 128
+#define SLOT_SIZE 12
+#define KPN_SIZE 16
+#define SPLIT_THRESHOLD 112 //1984
+
+#define MAX_KPN_NUMBER 6
+#define DELETE_MODIFICATION_THRESHOLD 60
 */
+
 
 typedef uint64_t pagenum_t;
 
