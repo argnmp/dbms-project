@@ -81,7 +81,7 @@ void print_tree(int64_t table_id, bool pagenum_p);
 Node find_leaf(int64_t table_id, pagenum_t root, int64_t key);
 int insert_into_new_root(int64_t table_id, Node left, Node right, int64_t key);
 int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key);
-int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size);
+int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size);
 
 void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbor, int neighbor_index, int64_t cur_key_prime, int key_prime_index);
 void coalesce_nodes(int64_t table_id, Node target, Node neighbor, int neighbor_index, int64_t cur_key_prime, int key_prime_index);

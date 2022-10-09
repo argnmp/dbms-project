@@ -8,7 +8,7 @@ int64_t open_table(const char* pathname){
 }
 
 int db_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
-    return insert(table_id, key, value, val_size);
+    return dbpt_insert(table_id, key, value, val_size);
 }
 
 int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size){
@@ -20,6 +20,10 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size){
 
 int db_delete(int64_t table_id, int64_t key){
     return dbpt_delete(table_id, key);
+}
+
+int db_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<int64_t>* keys, std::vector<char*>* values, std::vector<uint16_t>* val_sizes){
+
 }
 
 int shutdown_db(){

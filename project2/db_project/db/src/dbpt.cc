@@ -87,7 +87,6 @@ int Node::leaf_insert(int64_t key, const char* value, uint16_t val_size){
     if(leaf_ptr->amount_of_free_space < SLOT_SIZE + val_size){
         return -1;
     }
-    
     int i;
     for(i = 0; i<leaf_ptr->number_of_keys; i++){
         slot_t tmp;
@@ -405,6 +404,7 @@ int insert_into_new_root(int64_t table_id, Node left, Node right, int64_t key){
     return 0;
 }
 int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
+    //printf("insert_into_parent key: %d\n",key);
 
     // new root
     if(left.default_page.parent_page_number == 0){
@@ -448,9 +448,16 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
         }
         parent.internal_ptr->one_more_page_number = cinternal.internal_ptr->one_more_page_number;
         kpn_t s = cinternal.internal_get_kpn_index(i);
-        i+=1;
-        k_prime = s.get_key();
-        new_internal.internal_ptr->one_more_page_number = s.get_pagenum();
+        if(new_key_flag && key < s.get_key()){
+            k_prime = key;
+            new_internal.internal_ptr->one_more_page_number = right.pn;
+            new_key_flag = false;
+        }
+        else {
+            k_prime = s.get_key();    
+            new_internal.internal_ptr->one_more_page_number = s.get_pagenum();
+            i+=1;
+        }
         for(;i<cinternal.default_page.number_of_keys; i++){
             kpn_t tmp = cinternal.internal_get_kpn_index(i);
             if(new_key_flag && tmp.get_key()>key){
@@ -479,7 +486,7 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
     
 }
 
-int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
+int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
     //tree does not exist
     h_page_t header_node;
     file_read_page(table_id, 0, (page_t*) &header_node);      
@@ -496,7 +503,7 @@ int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
     }
 
     Node target_leaf = find_leaf(table_id, header_node.root_page_number, key);
-    //target_leaf.leaf_print_all(); 
+    target_leaf.leaf_print_all();
 
     int result = target_leaf.leaf_insert(key, value, val_size);
     if(result==0){
@@ -505,10 +512,10 @@ int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
         return 0;
     }
     else if(result == -2){
-        return 0;
+        //duplicate key exists.
+        return -1;
     }
     else {
-        //printf("split!\n");
         //split and insert into leaf.
         Node cleaf = target_leaf; 
         Node new_leaf(true, table_id);
@@ -524,30 +531,35 @@ int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
         uint16_t next;
         uint16_t acc_size = 0;
         for(next = 0; next<cleaf.leaf_ptr->number_of_keys; next++){
-            if(acc_size > SPLIT_THRESHOLD){
-                break;
-            }
             slot_t tmp;
             cleaf.leaf_move_slot(&tmp, next); 
-            char value[120];
-            cleaf.leaf_move_value(value, tmp.get_size(), tmp.get_offset());
+            char value_copy[120];
+            cleaf.leaf_move_value(value_copy, tmp.get_size(), tmp.get_offset());
             if(new_key_flag && key < tmp.get_key()){
                 new_key_flag = false;
                 target_leaf.leaf_insert(key, value, val_size);
+                acc_size += SLOT_SIZE + tmp.get_size(); 
+                if(acc_size > SPLIT_THRESHOLD){
+                    break;
+                }
             }
-            target_leaf.leaf_insert(tmp.get_key(), value, tmp.get_size());
+            target_leaf.leaf_insert(tmp.get_key(), value_copy, tmp.get_size());
             acc_size += SLOT_SIZE + tmp.get_size(); 
+            if(acc_size > SPLIT_THRESHOLD){
+                next += 1;
+                break;
+            }
         }
         for(; next<cleaf.leaf_ptr->number_of_keys; next++){
             slot_t tmp;
             cleaf.leaf_move_slot(&tmp, next); 
-            char value[120];
-            cleaf.leaf_move_value(value, tmp.get_size(), tmp.get_offset());
+            char value_copy[120];
+            cleaf.leaf_move_value(value_copy, tmp.get_size(), tmp.get_offset());
             if(new_key_flag && key < tmp.get_key()){
                 new_key_flag = false;
                 new_leaf.leaf_insert(key, value, val_size);
             }
-            new_leaf.leaf_insert(tmp.get_key(), value, tmp.get_size());
+            new_leaf.leaf_insert(tmp.get_key(), value_copy, tmp.get_size());
         }
         if(new_key_flag){
             new_leaf.leaf_insert(key, value, val_size); 
@@ -558,11 +570,13 @@ int insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
         target_leaf.write_to_disk();
         slot_t tmp;
         new_leaf.leaf_move_slot(&tmp, 0);
+        
+        printf("after split ---------\n");
+        target_leaf.leaf_print_all();
+        new_leaf.leaf_print_all();
 
         //new node should have pagenum!!
-        insert_into_parent(table_id, target_leaf, new_leaf, tmp.get_key());
-         
-        return 0;
+        return insert_into_parent(table_id, target_leaf, new_leaf, tmp.get_key());
     }
 }
 void coalesce_nodes(int64_t table_id, Node target, Node neighbor, int neighbor_index, int64_t cur_key_prime, int key_prime_index){

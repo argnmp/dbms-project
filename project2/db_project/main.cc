@@ -2,34 +2,76 @@
 #include "db.h"
 #include <random>
 #include <algorithm>
+#include <sstream>
+#include <set>
 using namespace std;
 
-// MAIN
-void usage_2( void ) {
-    printf("Enter any of the following commands after the prompt > :\n"
-    "\ti <k>  -- Insert <k> (an integer) as both key and value).\n"
-    "\tf <k>  -- Find the value under key <k>.\n"
-    "\tp <k> -- Print the path from the root to key k and its associated "
-           "value.\n"
-    "\tr <k1> <k2> -- Print the keys and values found in the range "
-            "[<k1>, <k2>\n"
-    "\td <k>  -- Delete key <k> and its associated value.\n"
-    "\tx -- Destroy the whole tree.  Start again with an empty tree of the "
-           "same order.\n"
-    "\tt -- Print the B+ tree.\n"
-    "\tl -- Print the keys of the leaves (bottom row of the tree).\n"
-    "\tv -- Toggle output of pointer addresses (\"verbose\") in tree and "
-           "leaves.\n"
-    "\tq -- Quit. (Or use Ctl-D.)\n"
-    "\t? -- Print this help message.\n");
+#define TEST 1
+
+void inserting(int64_t table_id, int k){
+    string value = "thisisvalue" + to_string(k);
+    printf("inserting %d--------------\n",k);
+    db_insert(table_id, k, value.c_str(), value.size());
+    print_tree(table_id,false);
+
 }
-
-int main( int argc, char ** argv ) {
-
-    /*
+void db_test(){
     string pathname = "test.db"; 
     int64_t table_id = open_table(pathname.c_str()); 
     
+    
+    /*
+    inserting(table_id, 74);
+    inserting(table_id, 47);
+    inserting(table_id, 64);
+    inserting(table_id, 75);
+    inserting(table_id, 39);
+    inserting(table_id, 76);
+    inserting(table_id, 61);
+    inserting(table_id, 4);
+    inserting(table_id, 52);
+    inserting(table_id, 45);
+    inserting(table_id, 54);
+    inserting(table_id, 32);
+    inserting(table_id, 6);
+    inserting(table_id, 94);
+    inserting(table_id, 59);
+    inserting(table_id, 22);
+    */
+     
+    //random test
+    
+    random_device rd;
+    mt19937 mt(rd());
+    uniform_int_distribution<int> range(0, 1000);
+    
+    set<int> rands;
+    for(int i = 0; i<=1000; i++){
+        int64_t val = range(mt);
+        rands.insert(val);
+        string value = "thisisvalue" + to_string(val);
+        printf("------------inserting %ld-------------\n",val);
+        int result = db_insert(table_id, val, value.c_str(), value.length());
+        print_tree(table_id, false);
+    }
+    cout<< "free pages: " << free_page_count(table_id) << endl;
+    for(auto i: rands){
+        char ret_val[120]; 
+        uint16_t val_size;
+        db_find(table_id, i, ret_val, &val_size); 
+        printf("key: %d, value: ",i);
+        for(int i = 0; i<val_size; i++){
+            printf("%c",ret_val[i]);
+        }
+        printf(" delete succeed? : ");
+        cout << db_delete(table_id, i) << endl;;
+    }
+    cout << endl;
+    cout<< "free pages: " << free_page_count(table_id) << endl;
+    print_tree(table_id, false);
+    
+    
+    /*
     cout << "after open_table" << endl;
     cout<< "free pages: " << free_page_count(table_id) << endl;
     
@@ -49,13 +91,6 @@ int main( int argc, char ** argv ) {
     cout<< "free pages: " << free_page_count(table_id) << endl;
     */
 
-    
-    /*
-    string value = "thisisneverthat";
-    db_insert(table_id, -234, value.c_str(), value.length());
-    db_insert(table_id, 234, value.c_str(), value.length());
-    print_tree(table_id, false);
-    */
 
     /*//bulk test
     for(int i = 0; i<=2000; i++){
@@ -81,25 +116,12 @@ int main( int argc, char ** argv ) {
     */
     
 
-    /* //random test
-    random_device rd;
-    mt19937 mt(rd());
-    uniform_int_distribution<int> range(0, 99);
     
-    vector<int> rands;
-    for(int i = 0; i<=50; i++){
-        int val = range(mt);
-        rands.push_back(val);
-        string value = "thisisvalue" + to_string(val);
-        db_insert(table_id, val, value.c_str(), value.length());
-    }
     
-    print_tree(table_id, false);
     
-    for(int i: rands){
-        printf("%d,",i);
-    }
-    cout<<endl;
+    
+    
+    /*
     for(int i = 0; i<=100; i++){
         char ret_val[200];
         uint16_t val_size;
@@ -113,14 +135,52 @@ int main( int argc, char ** argv ) {
         }
     }
     */
-    
+}
 
+void usage_2( void ) {
+    printf("Enter any of the following commands after the prompt > :\n"
+    "\ti <k> <v> -- Insert key <k> (an integer) and value <v> ).\n"
+    "\tf <k>  -- Find the value under key <k>.\n"
+    "\tr <k1> <k2> -- Print the keys and values found in the range "
+            "[<k1>, <k2>]\n"
+    "\td <k>  -- Delete key <k> and its associated value.\n"
+    "\tt -- Print the B+ tree.\n"
+    "\tl -- Print the keys and values of the leaves (bottom row of the tree).\n"
+    "\tv -- Toggle output of pagenum in the tree node\n"
+    "\tq -- Quit. (Or use Ctl-D.)\n"
+    "\t? -- Print this help message.\n");
+}
+
+//maximum two inputs
+void read_inputs(vector<string>& ret){
+    string input_value;
+    std::getline(std::cin, input_value);
+    istringstream ss(input_value);
+    string s;
+    string concat = "";
+    char delim = ' ';
+    int count = 0;
+    while(getline(ss, s, delim)){
+        if(count!= 1 && s == "") continue;
+        if(count==1) {
+            concat += s + " ";
+        } else {
+            ret.push_back(s);
+            count ++;
+        }
+    }
+    if(concat!="") ret.push_back(concat);
+    return; 
+}
+
+int db_client(){
     int input, range2;
     char instruction;
 
     string table_name;
     int64_t table_id = -1;
     int64_t input_key;
+    vector<string> input_values;
     string input_value;
     bool pagenum_toggle = false;
     char value[120];
@@ -133,8 +193,14 @@ int main( int argc, char ** argv ) {
     while (scanf("%c", &instruction) != EOF) {
         switch (instruction) {
         case 'u':
-            cin >> table_name;
-            table_id = open_table(table_name.c_str()); 
+            input_values.clear();
+            read_inputs(input_values);
+            if(input_values.size() != 1){
+                printf("Wrong input. \n");
+                break;
+            }
+            table_id = open_table(input_values[0].c_str()); 
+            table_name = input_values[0];
             printf("Switched to table %s\n", table_name.c_str());
             break;
         case 'd':
@@ -142,8 +208,22 @@ int main( int argc, char ** argv ) {
                 printf("Specify table name\n");
                 break;
             }
-            scanf("%ld", &input_key);
-            db_delete(table_id, input_key); 
+            input_values.clear();
+            read_inputs(input_values);
+            if(input_values.size() != 1){
+                printf("Wrong input. \n");
+                break;
+            }
+            try {
+                input_key = stoi(input_values[0]);
+            } catch (...){
+                printf("Wrong input.\n");
+                break;
+            }
+            result = db_delete(table_id, input_key); 
+            if(result==-1){
+                printf("Specified key is not in the table \n");
+            }
             print_tree(table_id, pagenum_toggle);
             break;
         case 'i':
@@ -151,9 +231,20 @@ int main( int argc, char ** argv ) {
                 printf("Specify table name\n");
                 break;
             }
-            scanf("%ld", &input_key);
-            cin >> input_value;
-            db_insert(table_id, input_key, input_value.c_str(), input_value.length());
+            input_values.clear();
+            read_inputs(input_values);
+            if(input_values.size() != 2){
+                printf("Wrong input. \n");
+                break;
+            }
+            try {
+                input_key = stoi(input_values[0]);
+            } catch (...){
+                printf("Wrong input.\n");
+                break;
+            }
+            
+            db_insert(table_id, input_key, input_values[1].c_str(), input_values[1].length());
             print_tree(table_id, pagenum_toggle);
             break;
         case 'f':
@@ -161,7 +252,18 @@ int main( int argc, char ** argv ) {
                 printf("Specify table name\n");
                 break;
             }
-            scanf("%ld", &input_key);
+            input_values.clear();
+            read_inputs(input_values);
+            if(input_values.size() != 1){
+                printf("Wrong input. \n");
+                break;
+            }
+            try {
+                input_key = stoi(input_values[0]);
+            } catch (...){
+                printf("Wrong input.\n");
+                break;
+            }
             result = db_find(table_id, input_key, value, &val_size);
             if(result == -1){
                 printf("Specified key is not in the table \n");
@@ -185,11 +287,12 @@ int main( int argc, char ** argv ) {
             return EXIT_SUCCESS;
             break;
         case 't':
-            if(result == -1){
-                printf("Specified key is not in the table \n");
+            if(table_id == -1) {
+                printf("Specify table name\n");
                 break;
             }
             print_tree(table_id, pagenum_toggle);
+            while (getchar() != (int)'\n');
             break;
         case 'v':
             pagenum_toggle = !pagenum_toggle;
@@ -207,11 +310,19 @@ int main( int argc, char ** argv ) {
             usage_2();
             break;
         }
-        while (getchar() != (int)'\n');
+        //while (getchar() != (int)'\n');
         cout<<table_name;
         printf("> ");
     }
     printf("\n");
+    return EXIT_SUCCESS;    
+}
 
-    return EXIT_SUCCESS;
+int main( int argc, char ** argv ) {
+#if TEST
+    db_test();
+    return 0;
+#else
+    return db_client();
+#endif
 }
