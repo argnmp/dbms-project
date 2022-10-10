@@ -12,6 +12,7 @@ uint16_t slot_t::get_size(){
 uint16_t slot_t::get_offset(){
     uint16_t offset;
     memcpy(&offset, data + 10, sizeof(offset));
+    return offset;
 }
 void slot_t::set_key(int64_t key){
     memcpy(data, &key, sizeof(key)); 

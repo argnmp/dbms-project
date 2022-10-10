@@ -15,47 +15,61 @@ void inserting(int64_t table_id, int k){
     print_tree(table_id,false);
 
 }
-void db_test(){
-    string pathname = "test.db"; 
-    int64_t table_id = open_table(pathname.c_str()); 
-    
-    
-    /*
-    inserting(table_id, 74);
-    inserting(table_id, 47);
-    inserting(table_id, 64);
-    inserting(table_id, 75);
-    inserting(table_id, 39);
-    inserting(table_id, 76);
-    inserting(table_id, 61);
-    inserting(table_id, 4);
-    inserting(table_id, 52);
-    inserting(table_id, 45);
-    inserting(table_id, 54);
-    inserting(table_id, 32);
-    inserting(table_id, 6);
-    inserting(table_id, 94);
-    inserting(table_id, 59);
-    inserting(table_id, 22);
-    */
-     
-    //random test
-    
+void random_test(int64_t table_id){
+    printf("------RANDOM_TEST------\n");
+    bool global_procedure_success = true;
+
     random_device rd;
     mt19937 mt(rd());
-    uniform_int_distribution<int> range(0, 1000);
+    uniform_int_distribution<int> insert_range(0, 1000);
+    uniform_int_distribution<int> delete_range(0, 100);
     
     set<int> rands;
     for(int i = 0; i<=1000; i++){
-        int64_t val = range(mt);
+        int64_t val = insert_range(mt);
         rands.insert(val);
         string value = "thisisvalue" + to_string(val);
-        printf("------------inserting %ld-------------\n",val);
         int result = db_insert(table_id, val, value.c_str(), value.length());
-        print_tree(table_id, false);
     }
     cout<< "free pages: " << free_page_count(table_id) << endl;
+    std:;vector<int> shuffled_inserted_keys;
     for(auto i: rands){
+        shuffled_inserted_keys.push_back(i); 
+    }
+    shuffle(shuffled_inserted_keys.begin(), shuffled_inserted_keys.end(), mt);
+    
+    vector<int> not_deleted_keys;
+    for(auto i: shuffled_inserted_keys){
+        string value = "thisisvalue" + to_string(i);
+        char ret_val[120]; 
+        uint16_t val_size;
+        db_find(table_id, i, ret_val, &val_size); 
+        /*
+        printf("key: %d, value: ",i);
+        for(int i = 0; i<val_size; i++){
+            printf("%c",ret_val[i]);
+        }
+        printf(" is same?: %d", memcmp(ret_val, value.c_str(), val_size));
+        */
+        if(memcmp(ret_val, value.c_str(), val_size) != 0){
+            global_procedure_success = false;
+        }
+        
+        if(delete_range(mt)==0){
+            //printf(" do not delete\n");
+            not_deleted_keys.push_back(i);
+            continue;
+        }
+        if(db_delete(table_id, i)!=0){
+            global_procedure_success = false; 
+        }
+    }
+    cout<< "free pages: " << free_page_count(table_id) << endl;
+    
+    print_tree(table_id, true);
+    cout<< "<not_deleted_keys>" << endl;
+    for(auto i: not_deleted_keys){
+        string value = "thisisvalue" + to_string(i);
         char ret_val[120]; 
         uint16_t val_size;
         db_find(table_id, i, ret_val, &val_size); 
@@ -63,12 +77,24 @@ void db_test(){
         for(int i = 0; i<val_size; i++){
             printf("%c",ret_val[i]);
         }
-        printf(" delete succeed? : ");
-        cout << db_delete(table_id, i) << endl;;
+        if(memcmp(ret_val, value.c_str(), val_size) != 0){
+            global_procedure_success = false;
+        }
+        if(db_delete(table_id, i)!=0){
+            global_procedure_success = false;
+        }
+        cout << endl;
     }
-    cout << endl;
-    cout<< "free pages: " << free_page_count(table_id) << endl;
-    print_tree(table_id, false);
+
+    printf("GLOBAL_PROCEDURE_SUCCESS: %d\n",global_procedure_success);
+    printf("--------------END------\n");
+}
+void db_test(){
+    string pathname = "test.db"; 
+    int64_t table_id = open_table(pathname.c_str()); 
+    
+    random_test(table_id); 
+    random_test(table_id); 
     
     
     /*
@@ -86,7 +112,8 @@ void db_test(){
     for(int i = 5; i<=9995; i++){
         db_delete(table_id, i);
     }
-    print_tree(table_id, true);
+    print_tree(table_id, false);
+    
 
     cout<< "free pages: " << free_page_count(table_id) << endl;
     */

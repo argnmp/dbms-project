@@ -62,9 +62,9 @@ Node& Node::operator=(const Node& n){
     else {
         internal_ptr = (internal_page_t*) &default_page; 
     }
+    return *this;
 }
 Node::~Node(){
-    //printf("freed %d %d page on memory\n", tid, pn);
 }
 pagenum_t Node::write_to_disk(){
     if(is_on_disk){
@@ -376,8 +376,8 @@ Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
                 break; 
             }
         }
+        delete cursor;
         cursor = new Node(table_id, next_pagenum);
-        
     }
     return *cursor;
 }
@@ -420,8 +420,7 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
         return 0;
     }
     else if(result==-2){
-        // this never will be the case
-        cout << "key collision" << endl;
+        // this must never be the case, key collision
         return -1;
     }
     else {
@@ -503,7 +502,6 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
     }
 
     Node target_leaf = find_leaf(table_id, header_node.root_page_number, key);
-    target_leaf.leaf_print_all();
 
     int result = target_leaf.leaf_insert(key, value, val_size);
     if(result==0){
@@ -570,10 +568,6 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
         target_leaf.write_to_disk();
         slot_t tmp;
         new_leaf.leaf_move_slot(&tmp, 0);
-        
-        printf("after split ---------\n");
-        target_leaf.leaf_print_all();
-        new_leaf.leaf_print_all();
 
         //new node should have pagenum!!
         return insert_into_parent(table_id, target_leaf, new_leaf, tmp.get_key());
@@ -867,7 +861,6 @@ int dbpt_delete(int64_t table_id, int64_t key){
     file_read_page(table_id, 0, (page_t*) &header_node);      
 
     if(header_node.root_page_number==0){
-        cout << "tree is empty" << endl;
         return -1;
     }
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
