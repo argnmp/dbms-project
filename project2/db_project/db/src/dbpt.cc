@@ -452,6 +452,7 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
         return 0;
     }
     else if(result==-2){
+        cout<<"key collision"<< endl;
         // this must never be the case, key collision
         return -1;
     }
@@ -560,6 +561,7 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
         bool new_key_flag = true;
         uint16_t next;
         uint16_t acc_size = 0;
+        int result;
         for(next = 0; next<cleaf.leaf_ptr->number_of_keys; next++){
             slot_t tmp;
             cleaf.leaf_move_slot(&tmp, next); 

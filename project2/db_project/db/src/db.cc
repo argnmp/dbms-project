@@ -16,7 +16,7 @@ int db_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_siz
 int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size){
     h_page_t header_node;
     file_read_page(table_id, 0, (page_t*) &header_node);      
-    if(header_node.free_page_number==0){
+    if(header_node.root_page_number==0){
         return -1;
     }
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
@@ -37,7 +37,6 @@ int init_db(){
 
 int shutdown_db(){
     for (auto i: allocated_memory_ptr){
-        printf("delete %p\n",i);
         delete i;
     }
     file_close_database_file();
