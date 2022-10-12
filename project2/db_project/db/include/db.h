@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 
+extern std::vector<char*> allocated_memory_ptr;
+
 // Open an existing database file or create one if not exist.
 int64_t open_table(const char* pathname);
 

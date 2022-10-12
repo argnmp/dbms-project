@@ -26,7 +26,6 @@ int64_t file_open_table_file(const char* pathname) {
         fp = fopen(pathname, "wb+");  
         //case for file not created
         if(fp == NULL){
-            cout<<"failed"<<endl;
             return -1;
         }
 
@@ -49,7 +48,6 @@ int64_t file_open_table_file(const char* pathname) {
 
     }
     else {
-        cout << "existing file" << endl;
         fread(&header_page_buf, PAGE_SIZE, 1, fp);
         if(header_page_buf.magic_number != 2022){
             return -1;

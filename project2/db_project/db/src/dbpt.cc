@@ -150,7 +150,7 @@ void Node::leaf_print_all(){
         char ret_val[112];
         uint16_t val_size;
         leaf_find(tmp.get_key(), ret_val, &val_size);
-        printf("key: %lld, size: %lld, offset: %lld, value: ",tmp.get_key(), tmp.get_size(), tmp.get_offset());
+        printf("key: %ld, size: %u, offset: %u, value: ",tmp.get_key(), tmp.get_size(), tmp.get_offset());
         for(int i = 0; i<val_size; i++){
             printf("%c",ret_val[i]);
         }
@@ -190,7 +190,7 @@ void Node::leaf_remove_unsafe(int64_t key){
         //change for leaf_move_slot
         memcpy(&tmp, copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
         if(tmp.get_key() == key) continue;
-        char ret_val[120];
+        char ret_val[MAX_VALUE_SIZE];
         copy.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
         leaf_append_unsafe(tmp.get_key(), ret_val, tmp.get_size());
     }
@@ -207,7 +207,7 @@ void Node::leaf_pack_values(int from, int to){
         slot_t tmp;
         //change for leaf_move_slot
         memcpy(&tmp, leaf_copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
-        char ret_val[120];
+        char ret_val[MAX_VALUE_SIZE];
         leaf_copy.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
         leaf_append_unsafe(tmp.get_key(), ret_val, tmp.get_size());
     }
@@ -236,11 +236,11 @@ void Node::internal_set_kpn_index(int64_t key, pagenum_t pagenum, int index){
     memcpy(internal_ptr->data + index*KPN_SIZE, tmp.data, sizeof(tmp.data)); 
 }
 void Node::internal_print_all(){
-    printf("pagenum: %lld\n", internal_ptr->one_more_page_number);
+    printf("pagenum: %lu\n", internal_ptr->one_more_page_number);
     for(int i = 0; i<internal_ptr->number_of_keys; i++){
         kpn_t tmp;
         memcpy(&tmp, internal_ptr->data + i*KPN_SIZE, sizeof(tmp)); 
-        printf("key: %lld, pagenum: %lld\n", tmp.get_key(), tmp.get_pagenum());
+        printf("key: %ld, pagenum: %lu\n", tmp.get_key(), tmp.get_pagenum());
     }
     printf("\n");
 }
@@ -317,6 +317,7 @@ void set_root_pagenum(int64_t table_id, pagenum_t pagenum){
 }
 
 void print_tree(int64_t table_id, bool pagenum_p){
+    printf("================PRINT_TREE===============\n");
     h_page_t header_node;
     file_read_page(table_id, 0, (page_t*) &header_node);      
     if(header_node.root_page_number == 0){
@@ -336,11 +337,11 @@ void print_tree(int64_t table_id, bool pagenum_p){
         }
         if(!target.isLeaf()){
             q.push({target.internal_ptr->one_more_page_number, t.second +1});
-            if(pagenum_p) printf("<%d>", target.internal_ptr->one_more_page_number);
+            if(pagenum_p) printf("<%lu>", target.internal_ptr->one_more_page_number);
             for(int i = 0; i<target.internal_ptr->number_of_keys; i++){
                 kpn_t tmp = target.internal_get_kpn_index(i);
-                printf("|%d|",tmp.get_key());
-                if(pagenum_p) printf("<%d>",tmp.get_pagenum());
+                printf("|%ld|",tmp.get_key());
+                if(pagenum_p) printf("<%lu>",tmp.get_pagenum());
                 q.push({tmp.get_pagenum(), t.second + 1});
 
             }
@@ -350,14 +351,45 @@ void print_tree(int64_t table_id, bool pagenum_p){
             for(int i = 0; i<target.leaf_ptr->number_of_keys; i++){
                 slot_t tmp;
                 target.leaf_move_slot(&tmp, i);
-                printf("{%d}",tmp.get_key());
+                printf("{%ld}",tmp.get_key());
             }
             printf(" ");
         }
     }
-    printf("\n\n");
-
+    printf("\n");
+    printf("=========================================\n");
+    printf("\n");
 }
+void print_leaves(int64_t table_id){
+    printf("================PRINT_LEAVES===============\n");
+    h_page_t header_node;
+    file_read_page(table_id, 0, (page_t*) &header_node);      
+    if(header_node.root_page_number == 0){
+        printf("Empty tree\n");
+    } 
+    Node cur(table_id, header_node.root_page_number);
+    while(!cur.isLeaf()){
+        cur = Node(table_id, cur.internal_ptr->one_more_page_number);
+    }
+    while(cur.leaf_ptr->right_sibling_page_number!=0){
+        for(int i = 0; i<cur.leaf_ptr->number_of_keys; i++){
+            slot_t tmp;
+            cur.leaf_move_slot(&tmp, i);
+            printf("{%ld}",tmp.get_key());
+        }
+        printf(" ");
+        cur = Node(table_id, cur.leaf_ptr->right_sibling_page_number);
+    }
+    for(int i = 0; i<cur.leaf_ptr->number_of_keys; i++){
+        slot_t tmp;
+        cur.leaf_move_slot(&tmp, i);
+        printf("{%ld}",tmp.get_key());
+    }
+    printf("\n");
+    printf("==========================================\n");
+    printf("\n");
+}
+
 
 Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
     //traverse, using node poitner, important!!!!
@@ -531,7 +563,7 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
         for(next = 0; next<cleaf.leaf_ptr->number_of_keys; next++){
             slot_t tmp;
             cleaf.leaf_move_slot(&tmp, next); 
-            char value_copy[120];
+            char value_copy[MAX_VALUE_SIZE];
             cleaf.leaf_move_value(value_copy, tmp.get_size(), tmp.get_offset());
             if(new_key_flag && key < tmp.get_key()){
                 new_key_flag = false;
@@ -551,7 +583,7 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
         for(; next<cleaf.leaf_ptr->number_of_keys; next++){
             slot_t tmp;
             cleaf.leaf_move_slot(&tmp, next); 
-            char value_copy[120];
+            char value_copy[MAX_VALUE_SIZE];
             cleaf.leaf_move_value(value_copy, tmp.get_size(), tmp.get_offset());
             if(new_key_flag && key < tmp.get_key()){
                 new_key_flag = false;
@@ -617,7 +649,7 @@ void coalesce_nodes(int64_t table_id, Node target, Node neighbor, int neighbor_i
         for(int i = 0; i<target.leaf_ptr->number_of_keys; i++){
             slot_t tmp;
             target.leaf_move_slot(&tmp, i);
-            char ret_val[120];
+            char ret_val[MAX_VALUE_SIZE];
             target.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
             neighbor.leaf_append_unsafe(tmp.get_key(), ret_val, tmp.get_size());
         }
@@ -645,7 +677,7 @@ void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbo
             for(int i = neighbor.leaf_ptr->number_of_keys - 1; i>0; i--){
                 slot_t tmp;
                 neighbor.leaf_move_slot(&tmp, i);
-                char ret_val[120];
+                char ret_val[MAX_VALUE_SIZE];
                 neighbor.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
                 neighbor.leaf_ptr->number_of_keys -= 1;
                 
@@ -691,7 +723,7 @@ void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbo
             for(i = 0; i<neighbor.leaf_ptr->number_of_keys; i++){
                 slot_t tmp;
                 neighbor.leaf_move_slot(&tmp, i);
-                char ret_val[120];
+                char ret_val[MAX_VALUE_SIZE];
                 neighbor.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
 
                 target.leaf_append_unsafe(tmp.get_key(),ret_val,tmp.get_size());
@@ -869,4 +901,53 @@ int dbpt_delete(int64_t table_id, int64_t key){
         return 0;
     }
     return -1;
+}
+
+int dbpt_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<int64_t>* keys, std::vector<char*>* values, std::vector<uint16_t>* val_sizes, std::vector<char*>* allocated_memory_ptr){
+    h_page_t header_node;
+    file_read_page(table_id, 0, (page_t*) &header_node);      
+    
+    if(header_node.root_page_number == 0){
+        return -1;
+    } 
+    if(begin_key > end_key) return -1;
+    Node target = find_leaf(table_id, header_node.root_page_number, begin_key); 
+    int idx;
+    for(idx = 0; idx<target.leaf_ptr->number_of_keys; idx++){
+        slot_t tmp;
+        memcpy(&tmp, target.leaf_ptr->data + idx*SLOT_SIZE, sizeof(tmp));
+        if(tmp.get_key()>=begin_key) break;
+    }
+    if(idx == target.leaf_ptr->number_of_keys){
+        if(target.leaf_ptr->right_sibling_page_number == 0){
+            return -1;
+        }
+        else {
+            idx = 0;
+            target = Node(table_id, target.leaf_ptr->right_sibling_page_number);
+        }
+    }
+    bool exit_flag = false;
+    while(!exit_flag){
+        for(idx; idx<target.leaf_ptr->number_of_keys; idx++){
+            slot_t tmp;
+            memcpy(&tmp, target.leaf_ptr->data + idx*SLOT_SIZE, sizeof(tmp));
+            if(tmp.get_key() > end_key){
+                exit_flag = true;
+                break;
+            }
+            keys->push_back(tmp.get_key());
+            char* ptr = new char[tmp.get_size()]; 
+            target.leaf_move_value(ptr, tmp.get_size(), tmp.get_offset());
+            values->push_back(ptr); 
+            val_sizes->push_back(tmp.get_size()); 
+            allocated_memory_ptr->push_back(ptr);
+        }
+        if(target.leaf_ptr->right_sibling_page_number == 0){
+            exit_flag = true;
+        }
+        target = Node(table_id, target.leaf_ptr->right_sibling_page_number);
+        idx = 0;
+    }
+    return 0;
 }

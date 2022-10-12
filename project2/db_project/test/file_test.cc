@@ -133,8 +133,11 @@ TEST_F(FileTest, ExtendFile) {
 
     //allocate all free pages
     while(1){
+        /*
         fseek(fp, 0, SEEK_SET);
         fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        */
+        file_read_page(table_id, 0, (page_t*)&header_page_buf);
         if(header_page_buf.free_page_number == 0){
             break;
         }
@@ -152,8 +155,11 @@ TEST_F(FileTest, ExtendFile) {
     //expect the number of free pages is (number_of_pages(from header) / 2 - 1)
     int count = 0;
     while(1){
+        /*
         fseek(fp, 0, SEEK_SET);
         fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        */
+        file_read_page(table_id, 0, (page_t*)&header_page_buf);
         if(header_page_buf.free_page_number == 0){
             break;
         }
@@ -172,8 +178,11 @@ TEST_F(FileTest, ExtendFileSeriesA) {
 
     //allocate all free pages
     while(1){
+        /*
         fseek(fp, 0, SEEK_SET);
         fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        */
+        file_read_page(table_id, 0, (page_t*)&header_page_buf);
         if(header_page_buf.free_page_number == 0){
             break;
         }
@@ -183,16 +192,22 @@ TEST_F(FileTest, ExtendFileSeriesA) {
     //test file size increases and free pages are linked
     allocated = file_alloc_page(fd);
     //GTEST_COUT(<<"allocated page: "<<allocated);
+    /*
     fseek(fp, 0, SEEK_SET);
     fread(&header_page_buf, PAGE_SIZE, 1, fp);
+    */
+    file_read_page(table_id, 0, (page_t*)&header_page_buf);
     ASSERT_EQ(allocated, header_page_buf.number_of_pages - 1);
 
     //count all free pages and allocate
     //expect the number of free pages is (number_of_pages(from header) / 2 - 1)
     int count = 0;
     while(1){
+        /*
         fseek(fp, 0, SEEK_SET);
         fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        */
+        file_read_page(table_id, 0, (page_t*)&header_page_buf);
         if(header_page_buf.free_page_number == 0){
             break;
         }
@@ -209,8 +224,11 @@ TEST_F(FileTest, ExtendFileSeriesB) {
 
     //allocate all free pages
     while(1){
+        /*
         fseek(fp, 0, SEEK_SET);
         fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        */
+        file_read_page(table_id, 0, (page_t*)&header_page_buf);
         if(header_page_buf.free_page_number == 0){
             break;
         }
@@ -220,16 +238,22 @@ TEST_F(FileTest, ExtendFileSeriesB) {
     //test file size increases and free pages are linked
     allocated = file_alloc_page(fd);
     //GTEST_COUT(<<"allocated page: "<<allocated);
+    /*
     fseek(fp, 0, SEEK_SET);
     fread(&header_page_buf, PAGE_SIZE, 1, fp);
+    */
+    file_read_page(table_id, 0, (page_t*)&header_page_buf);
     ASSERT_EQ(allocated, header_page_buf.number_of_pages - 1);
 
     //count all free pages and allocate
     //expect the number of free pages is (number_of_pages(from header) / 2 - 1)
     int count = 0;
     while(1){
+        /*
         fseek(fp, 0, SEEK_SET);
         fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        */
+        file_read_page(table_id, 0, (page_t*)&header_page_buf);
         if(header_page_buf.free_page_number == 0){
             break;
         }
@@ -248,8 +272,11 @@ TEST_F(FileTest, FreePageTest){
     h_page_t prev_header_page_buf;
     f_page_t free_page_buf;
 
+    /*
     fseek(fp, 0, SEEK_SET);
     fread(&prev_header_page_buf, PAGE_SIZE, 1, fp);
+    */
+    file_read_page(table_id, 0, (page_t*) &prev_header_page_buf);
     
     // random test case
     pagenum_t allocated_pages[120];
@@ -265,12 +292,19 @@ TEST_F(FileTest, FreePageTest){
      * check if the number of free pages equals to "previous NUMBER_OF_PAGES(from header pages) - 40(allocated page)"
      */
     int count = 0;
+    /*
     fseek(fp, 0, SEEK_SET);
     fread(&header_page_buf, PAGE_SIZE, 1, fp);
+    */
+    file_read_page(table_id, 0, (page_t*)&header_page_buf);
+
     pagenum_t npm = header_page_buf.free_page_number;
     while(1){
+        /*
         fseek(fp, npm * PAGE_SIZE, SEEK_SET);
         fread(&free_page_buf, PAGE_SIZE, 1, fp);
+        */
+        file_read_page(table_id, npm, (page_t*)&free_page_buf);
         count += 1;
         npm = free_page_buf.next_free_page_number;
         if(npm == 0){
@@ -286,7 +320,7 @@ TEST_F(FileTest, FreePageTest){
 
 TEST_F(FileTest, CheckReadWriteOperation){
     page_t src;    
-    for(int i = 0; i<PAGE_SIZE; i++){
+    for(int i = 0; i<PAGE_SIZE-PAGE_HEADER_SIZE; i++){
         src.data[i] = 65 + (i%26);
     } 
     pagenum_t pagenum = file_alloc_page(table_id);
@@ -294,6 +328,6 @@ TEST_F(FileTest, CheckReadWriteOperation){
     
     page_t dest;
     file_read_page(table_id, pagenum, &dest);
-    ASSERT_EQ(memcmp(src.data, dest.data, PAGE_SIZE), 0);
+    ASSERT_EQ(memcmp(src.data, dest.data, PAGE_SIZE-PAGE_HEADER_SIZE), 0);
 }
 

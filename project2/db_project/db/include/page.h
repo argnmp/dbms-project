@@ -6,30 +6,31 @@
 #include <cstring>
 using namespace std;
 
-/*
-// These definitions are not requirements.
-// You may build your own way to handle the constants.
 #define INITIAL_DB_FILE_SIZE (10 * 1024 * 1024)  // 10 MiB
 #define PAGE_SIZE (4 * 1024)                     // 4 KiB
 #define PAGE_HEADER_SIZE 128
 #define SLOT_SIZE 12
 #define KPN_SIZE 16
-#define SPLIT_THRESHOLD 1984
-
 #define MAX_KPN_NUMBER 248
+#define SPLIT_THRESHOLD 1984
 #define DELETE_MODIFICATION_THRESHOLD 2500
-*/
+#define MAX_VALUE_SIZE 120
 
 
+
+/*
 #define INITIAL_DB_FILE_SIZE 573440 
 #define PAGE_SIZE (224)                     // 224bytes
 #define PAGE_HEADER_SIZE 128
 #define SLOT_SIZE 12
 #define KPN_SIZE 16
-#define SPLIT_THRESHOLD 48 //1984
-
 #define MAX_KPN_NUMBER 6
+#define SPLIT_THRESHOLD 48 //1984
 #define DELETE_MODIFICATION_THRESHOLD 60
+#define MAX_VALUE_SIZE 120
+
+*/
+
 
 
 
