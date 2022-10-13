@@ -10,6 +10,9 @@ using namespace std;
 
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
+#define DbRandomInsertionTest 0
+#define DbRandomInsertionDeletionTest 1
+
 class DbTest : public ::testing::Test {
     protected:
         int64_t table_id;
@@ -26,6 +29,7 @@ class DbTest : public ::testing::Test {
         }
 
 };
+/*
 TEST_F(DbTest, BulkInsertDeletionTest){
     cout << "free pages: " << free_page_count(table_id) << endl;
     for(int i = 0; i<=10000; i++){
@@ -39,6 +43,37 @@ TEST_F(DbTest, BulkInsertDeletionTest){
     cout << "free pages: " << free_page_count(table_id) << endl;
     
 }
+*/
+
+#if DbRandomInsertionTest
+TEST_F(DbTest, RandomInsertionTest){
+    bool global_procedure_success = true;
+
+    random_device rd;
+    mt19937 mt(rd());
+    uniform_int_distribution<int> insert_range(0, 999999);
+    uniform_int_distribution<int> value_multiplied_range(1, 10);
+    
+    /*
+     * Insert 10000 random numbers in range (0~100000)
+     * For checking the value inserted is same as the found value by db_find, store keys and values in "rands" and "inserted_values"
+     */
+    set<int> rands;
+    map<int, string> inserted_values;
+    for(int i = 0; i<=10000; i++){
+        int64_t val = insert_range(mt);
+        string value = "thisisvalue";
+        for(int k = 0; k<value_multiplied_range(mt); k++){
+            value += to_string(val);
+        }
+        //GTEST_COUT(<<"Inserting: "<<val);
+        int result = db_insert(table_id, val, value.c_str(), value.length());
+        print_tree(table_id, false);
+    }
+}
+#endif
+
+#if DbRandomInsertionDeletionTest
 TEST_F(DbTest, RandomInsertionDeletionTest){
 
     bool global_procedure_success = true;
@@ -119,12 +154,14 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
         if(memcmp(ret_val, inserted_values[i].c_str(), val_size) != 0){
             global_procedure_success = false;
         }
+        //GTEST_COUT(<<"Leftover Deleting: "<<i);
         if(db_delete(table_id, i)!=0){
             global_procedure_success = false;
         }
     }
     ASSERT_TRUE(global_procedure_success);
 }
+#endif
 /*
 void random_test(int64_t table_id){
     printf("------RANDOM_TEST------\n");

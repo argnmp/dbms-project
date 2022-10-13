@@ -131,6 +131,7 @@ int Node::leaf_append_unsafe(int64_t key, const char* value, uint16_t val_size){
     return 0;
 }
 int Node::leaf_find(int64_t key, char* ret_val, uint16_t* val_size){
+    /*
     for(int i = 0; i<leaf_ptr->number_of_keys; i++){
         slot_t tmp;
         memcpy(&tmp, leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
@@ -138,6 +139,28 @@ int Node::leaf_find(int64_t key, char* ret_val, uint16_t* val_size){
             memcpy(ret_val, leaf_ptr->data + tmp.get_offset(), sizeof(uint8_t)* tmp.get_size());
             *val_size = tmp.get_size();
             return 0;
+        }
+    }
+    return -1;
+    */
+    //binary search
+    int low = 0; 
+    int high = leaf_ptr->number_of_keys -1;
+    int target;
+    while(low<=high){
+        target = (low+high)/2;
+        slot_t tmp;
+        memcpy(&tmp, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp)); 
+        if(tmp.get_key()==key){
+            memcpy(ret_val, leaf_ptr->data + tmp.get_offset(), sizeof(uint8_t)* tmp.get_size());
+            *val_size = tmp.get_size();
+            return 0;
+        }
+        else if (tmp.get_key() > key){
+            high = target-1;
+        }
+        else {
+            low = target+1;
         }
     }
     return -1;
@@ -160,6 +183,7 @@ void Node::leaf_print_all(){
 
 }
 int Node::leaf_find_slot(int64_t key){
+    /*
     for(int i = 0; i<leaf_ptr->number_of_keys; i++){
         slot_t tmp;
         memcpy(&tmp, leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
@@ -167,6 +191,27 @@ int Node::leaf_find_slot(int64_t key){
             return 0;
         }
     }
+    return -1;
+    */
+    //binary search
+    int low = 0; 
+    int high = leaf_ptr->number_of_keys -1;
+    int target;
+    while(low<=high){
+        target = (low+high)/2;
+        slot_t tmp;
+        memcpy(&tmp, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp)); 
+        if(tmp.get_key()==key){
+            return 0;
+        }
+        else if (tmp.get_key() > key){
+            high = target-1;
+        }
+        else {
+            low = target+1;
+        }
+    }
+
     return -1;
 
 }
@@ -245,6 +290,7 @@ void Node::internal_print_all(){
     printf("\n");
 }
 int Node::internal_find_kpn(int64_t key){
+    /*
     for(int i = 0; i<internal_ptr->number_of_keys; i++){
         kpn_t tmp;
         memcpy(&tmp, internal_ptr->data + i*KPN_SIZE, sizeof(tmp)); 
@@ -252,6 +298,27 @@ int Node::internal_find_kpn(int64_t key){
             return 0;
         }
     }
+    return -1;
+    */
+    //binary search
+    int low = 0; 
+    int high = internal_ptr->number_of_keys -1;
+    int target;
+    while(low<=high){
+        target = (low+high)/2;
+        kpn_t tmp;
+        memcpy(&tmp, internal_ptr->data + target*KPN_SIZE, sizeof(tmp)); 
+        if(tmp.get_key()==key){
+            return 0;
+        }
+        else if (tmp.get_key() > key){
+            high = target-1;
+        }
+        else {
+            low = target+1;
+        }
+    }
+
     return -1;
 }
 int Node::internal_insert(int64_t key, pagenum_t pagenum){
@@ -325,7 +392,7 @@ void print_tree(int64_t table_id, bool pagenum_p){
     } 
     queue<pair<pagenum_t, int>> q; 
     q.push({header_node.root_page_number, 0});
-    if(pagenum_p) printf("<%d>\n", header_node.root_page_number);
+    if(pagenum_p) printf("<%lu>\n", header_node.root_page_number);
     int cur_rank = 0;
     while(!q.empty()){
         auto t = q.front();
