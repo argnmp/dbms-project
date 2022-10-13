@@ -8,21 +8,21 @@
 
 using namespace std;
 
-#define GTEST_COUT(args) std::cerr << "[          ] [ DEBUG ] " args << std::endl;
+#define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
 class DbTest : public ::testing::Test {
     protected:
         int64_t table_id;
         string pathname;
         DbTest() {
+            //remove existing test db file
+            remove(pathname.c_str());
             pathname = "db_test.db"; 
             table_id = open_table(pathname.c_str()); 
             init_db();
         }
         ~DbTest() {
             shutdown_db();
-            //remove test db file
-            remove(pathname.c_str());
         }
 
 };
@@ -32,7 +32,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
 
     random_device rd;
     mt19937 mt(rd());
-    uniform_int_distribution<int> insert_range(0, 100000);
+    uniform_int_distribution<int> insert_range(0, 10000000);
     uniform_int_distribution<int> delete_range(0, 100);
     uniform_int_distribution<int> value_multiplied_range(1, 10);
     
@@ -42,7 +42,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
      */
     set<int> rands;
     map<int, string> inserted_values;
-    for(int i = 0; i<=1000; i++){
+    for(int i = 0; i<=10000; i++){
         int64_t val = insert_range(mt);
         rands.insert(val);
         string value = "thisisvalue";
@@ -53,6 +53,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
             inserted_values.insert({val, value}); 
         }
 
+        GTEST_COUT(<<"Inserting: "<<val);
         int result = db_insert(table_id, val, value.c_str(), value.length());
     }
 
@@ -90,6 +91,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
             not_deleted_keys.push_back(i);
             continue;
         }
+        GTEST_COUT(<<"Deleting: "<<i);
         if(db_delete(table_id, i)!=0){
             global_procedure_success = false; 
         }

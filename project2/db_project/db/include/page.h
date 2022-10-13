@@ -34,8 +34,6 @@ using namespace std;
 
 typedef uint64_t pagenum_t;
 
-// keeping this data structure not to open same file multiple times
-extern map<string, int64_t> opened_tables;
 
 // header page structure
 struct h_page_t {

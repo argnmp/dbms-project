@@ -47,6 +47,7 @@ TEST(FileInitTest, HandlesInitialization){
 
     // Close all database files
     file_close_database_file();
+    remove(pathname.c_str());
 }
 
 #if ExistFileInitSeries
@@ -73,9 +74,7 @@ class FileTest : public ::testing::Test {
   FileTest() { table_id = file_open_table_file(pathname.c_str()); }
 
   ~FileTest() {
-    if (table_id >= 0) {
-      file_close_database_file();
-    }
+    file_close_database_file();
   }
 
   int64_t table_id;                

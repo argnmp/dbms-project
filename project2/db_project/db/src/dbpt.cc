@@ -65,6 +65,7 @@ Node& Node::operator=(const Node& n){
     return *this;
 }
 Node::~Node(){
+    printf("destroyed!\n");
 }
 pagenum_t Node::write_to_disk(){
     if(is_on_disk){
@@ -393,6 +394,7 @@ void print_leaves(int64_t table_id){
 
 Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
     //traverse, using node poitner, important!!!!
+    /*
     Node* cursor = new Node(table_id, root);
     while(!cursor->isLeaf()){
         int i = 0;
@@ -412,6 +414,25 @@ Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
         cursor = new Node(table_id, next_pagenum);
     }
     return *cursor;
+    */
+    Node cursor(table_id, root);
+    while(!cursor.isLeaf()){
+        int i = 0;
+        kpn_t tmp;
+        pagenum_t next_pagenum = cursor.internal_ptr->one_more_page_number;
+        while (i < cursor.internal_ptr->number_of_keys){
+            tmp = cursor.internal_get_kpn_index(i);
+            if (key >= tmp.get_key()){
+                i++;
+                next_pagenum = tmp.get_pagenum();
+            }
+            else {
+                break; 
+            }
+        }
+        cursor = Node(table_id, next_pagenum);
+    }
+    return cursor;
 }
 
 int insert_into_new_root(int64_t table_id, Node left, Node right, int64_t key){

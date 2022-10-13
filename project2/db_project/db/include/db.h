@@ -1,5 +1,8 @@
 #ifndef DB_H_
 #define DB_H_
+
+#include "dbpt.h"
+#include "file.h"
 #include <cstdint>
 #include <vector>
 

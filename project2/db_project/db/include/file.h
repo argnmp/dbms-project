@@ -8,6 +8,9 @@
 #include "page.h"
 using namespace std;
 
+// keeping this data structure not to open same file multiple times
+extern map<string, int64_t> opened_tables;
+
 // Open existing database file or create one if it doesn't exist
 int64_t file_open_table_file(const char* pathname);
 
