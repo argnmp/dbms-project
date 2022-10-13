@@ -26,6 +26,19 @@ class DbTest : public ::testing::Test {
         }
 
 };
+TEST_F(DbTest, BulkInsertDeletionTest){
+    cout << "free pages: " << free_page_count(table_id) << endl;
+    for(int i = 0; i<=10000; i++){
+        string value = "thisisvalue";
+        db_insert(table_id, i, value.c_str(), value.length()); 
+    }
+    cout << "free pages: " << free_page_count(table_id) << endl;
+    for(int i = 0; i<=10000; i++){
+        db_delete(table_id, i); 
+    }
+    cout << "free pages: " << free_page_count(table_id) << endl;
+    
+}
 TEST_F(DbTest, RandomInsertionDeletionTest){
 
     bool global_procedure_success = true;
@@ -53,7 +66,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
             inserted_values.insert({val, value}); 
         }
 
-        GTEST_COUT(<<"Inserting: "<<val);
+        //GTEST_COUT(<<"Inserting: "<<val);
         int result = db_insert(table_id, val, value.c_str(), value.length());
     }
 
@@ -91,7 +104,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
             not_deleted_keys.push_back(i);
             continue;
         }
-        GTEST_COUT(<<"Deleting: "<<i);
+        //GTEST_COUT(<<"Deleting: "<<i);
         if(db_delete(table_id, i)!=0){
             global_procedure_success = false; 
         }

@@ -2,7 +2,6 @@
 
 map<string, int64_t> opened_tables;
 
-// Open existing database file or create one if it doesn't exist
 int64_t file_open_table_file(const char* pathname) { 
     //if table already opened
     auto target = opened_tables.find((string)pathname);
@@ -14,18 +13,19 @@ int64_t file_open_table_file(const char* pathname) {
     f_page_t free_page_buf;
     page_t page_buf;
 
-    FILE* fp;
-    fp = fopen(pathname, "rb+");  
     
+    int fd = open(pathname, O_RDWR | O_SYNC );
+
 
     //if the file not existing, create new one
-    if(fp == NULL){
+    if(fd == -1){
         //total size of index
         int total_index = INITIAL_DB_FILE_SIZE / PAGE_SIZE;
 
-        fp = fopen(pathname, "wb+");  
+        fd = open(pathname, O_RDWR | O_CREAT | O_SYNC, 0644);
+
         //case for file not created
-        if(fp == NULL){
+        if(fd == -1){
             return -1;
         }
 
@@ -34,48 +34,43 @@ int64_t file_open_table_file(const char* pathname) {
         header_page_buf.free_page_number = total_index-1;
         header_page_buf.number_of_pages = total_index;
         header_page_buf.root_page_number = 0;
-        fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
-        fflush(fp);
-        fsync(fileno(fp));
+        pwrite(fd, &header_page_buf, PAGE_SIZE, 0);
+        sync();
+
 
         //initialize pages;
         for(int i = 1; i<total_index; i++){
             free_page_buf.next_free_page_number = i-1;
-            fwrite(&free_page_buf, PAGE_SIZE, 1, fp);
-            fflush(fp);
-            fsync(fileno(fp));
+            pwrite(fd, &free_page_buf, PAGE_SIZE, i*PAGE_SIZE);
+            sync();
         }
-
     }
     else {
-        fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        pread(fd, &header_page_buf, PAGE_SIZE, 0);
         if(header_page_buf.magic_number != 2022){
             return -1;
         }
     }
     
-    opened_tables.insert({pathname, fileno(fp)});
-    return fileno(fp); 
+    opened_tables.insert({pathname, fd});
+    return fd; 
 }
 
 // Allocate an on-disk page from the free page list
 pagenum_t file_alloc_page(int64_t table_id) { 
-    FILE* fp = fdopen(table_id, "rb+");  
     h_page_t header_page_buf;
     f_page_t free_page_buf;
     page_t page_buf;
     pagenum_t allocated_page_number;
 
-    fseek(fp, 0, SEEK_SET);
-    fread(&header_page_buf, PAGE_SIZE, 1, fp);
+    pread(table_id, &header_page_buf, PAGE_SIZE, 0);
     
     if(header_page_buf.free_page_number == 0) {
         pagenum_t prev_free_page_number;
         pagenum_t prev_number_of_pages;
 
         // if no more free page left, double the size of database file
-        fseek(fp, 0, SEEK_SET);
-        fread(&header_page_buf, PAGE_SIZE, 1, fp);
+        pread(table_id, &header_page_buf, PAGE_SIZE, 0);
 
         prev_free_page_number = header_page_buf.free_page_number;
         prev_number_of_pages = header_page_buf.number_of_pages;
@@ -83,109 +78,83 @@ pagenum_t file_alloc_page(int64_t table_id) {
         header_page_buf.number_of_pages = header_page_buf.number_of_pages + prev_number_of_pages;
         header_page_buf.free_page_number = header_page_buf.number_of_pages - 1;
 
-        fseek(fp, 0, SEEK_SET);
-        fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
-        fflush(fp);
-        fsync(table_id);
+        pwrite(table_id, &header_page_buf, PAGE_SIZE, 0);
+        sync();
        
         //initialize page numbers and link free page list
         
         free_page_buf.next_free_page_number = prev_free_page_number; 
-        fseek(fp, prev_number_of_pages * PAGE_SIZE, SEEK_SET);
-        fwrite(&free_page_buf, PAGE_SIZE, 1, fp);
-        fflush(fp);
-        fsync(table_id);
+        pwrite(table_id, &free_page_buf, PAGE_SIZE, prev_number_of_pages * PAGE_SIZE);
+        sync();
+
         for(int i = 1; i<prev_number_of_pages; i++){
             free_page_buf.next_free_page_number = prev_number_of_pages + i - 1;
-            fwrite(&free_page_buf, PAGE_SIZE, 1, fp);
-            fflush(fp);
-            fsync(table_id);
+            pwrite(table_id, &free_page_buf, PAGE_SIZE, (prev_number_of_pages + i) * PAGE_SIZE);
+            sync();
         }
              
     }
     allocated_page_number = header_page_buf.free_page_number;
 
-    fseek(fp, allocated_page_number * PAGE_SIZE, SEEK_SET);
-    fread(&free_page_buf, PAGE_SIZE, 1, fp);
+    pread(table_id, &free_page_buf, PAGE_SIZE, allocated_page_number * PAGE_SIZE);
     
     header_page_buf.free_page_number = free_page_buf.next_free_page_number; 
 
-    fseek(fp, 0, SEEK_SET);
-    fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
-    fflush(fp);
-    fsync(table_id);
+    pwrite(table_id, &header_page_buf, PAGE_SIZE, 0);
+    sync();
 
     return allocated_page_number; 
 }
 
-// Free an on-disk page to the free page list
 void file_free_page(int64_t table_id, pagenum_t pagenum) {
+
     h_page_t header_page_buf;
     f_page_t free_page_buf;
-    FILE* fp = fdopen(table_id, "rb+");
 
-    fseek(fp, 0, SEEK_SET);
-    fread(&header_page_buf, PAGE_SIZE, 1, fp);
+    pread(table_id, &header_page_buf, PAGE_SIZE, 0);
     
     pagenum_t temp = header_page_buf.free_page_number;
 
     header_page_buf.free_page_number = pagenum;
 
-    fseek(fp, 0, SEEK_SET);
-    fwrite(&header_page_buf, PAGE_SIZE, 1, fp);
-    fflush(fp);
-    fsync(table_id);
+    pwrite(table_id, &header_page_buf, PAGE_SIZE, 0);
+    sync();
     
     // resets the page and connect to free page list
     free_page_buf.next_free_page_number = temp;
-    fseek(fp, pagenum * PAGE_SIZE, SEEK_SET);
-    fwrite(&free_page_buf, PAGE_SIZE, 1, fp);
-    fflush(fp);
-    fsync(table_id);
+    pwrite(table_id, &free_page_buf, PAGE_SIZE, pagenum * PAGE_SIZE);
+    sync();
 }
-
-// Read an on-disk page into the in-memory page structure(dest)
 void file_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest) {
-    FILE* fp = fdopen(table_id, "rb+");
-    fseek(fp, pagenum * PAGE_SIZE, SEEK_SET);
-    fread(dest, PAGE_SIZE, 1, fp);
+    pread(table_id, dest, PAGE_SIZE, pagenum * PAGE_SIZE);
 }
 
-// Write an in-memory page(src) to the on-disk page
 void file_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src) {
-    FILE* fp = fdopen(table_id, "rb+");
-    fseek(fp, pagenum * PAGE_SIZE, SEEK_SET);
-    fwrite(src, PAGE_SIZE, 1, fp);
-    fflush(fp);
-    fsync(table_id);
+    pwrite(table_id, src, PAGE_SIZE, pagenum * PAGE_SIZE);
+    sync();
 }
 
 // Close the database file
 void file_close_database_file() {
     for(pair<string, int> file: opened_tables){
-        FILE* fp = fdopen(file.second, "rb+");
-        fclose(fp); 
+        close(file.second); 
     }
     opened_tables.clear();
 }
 
-
 uint64_t free_page_count(int64_t table_id){
-    FILE* fp = fdopen(table_id, "rb+");
     h_page_t header_page_buf;
     f_page_t free_page_buf;
     uint64_t count = 0;
-    fseek(fp, 0, SEEK_SET);
-    fread(&header_page_buf, PAGE_SIZE, 1, fp);
+    pread(table_id, &header_page_buf, PAGE_SIZE, 0);
     pagenum_t npm = header_page_buf.free_page_number;
     while(1){
-        fseek(fp, npm * PAGE_SIZE, SEEK_SET);
-        fread(&free_page_buf, PAGE_SIZE, 1, fp);
-        count += 1;
-        npm = free_page_buf.next_free_page_number;
         if(npm == 0){
             break;
         }
+        pread(table_id, &free_page_buf, PAGE_SIZE, npm * PAGE_SIZE);
+        count += 1;
+        npm = free_page_buf.next_free_page_number;
     } 
     return count;
 }

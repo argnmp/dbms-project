@@ -65,7 +65,6 @@ Node& Node::operator=(const Node& n){
     return *this;
 }
 Node::~Node(){
-    printf("destroyed!\n");
 }
 pagenum_t Node::write_to_disk(){
     if(is_on_disk){

@@ -170,7 +170,7 @@ TEST_F(FileTest, ExtendFile) {
 
 #if ExtendFileSeries
 TEST_F(FileTest, ExtendFileSeriesA) {
-    FILE* fp = fdopen(fd, "rb+");
+    FILE* fp = fdopen(table_id, "rb+");
     h_page_t header_page_buf;
     f_page_t free_page_buf;
     pagenum_t allocated;
@@ -185,11 +185,11 @@ TEST_F(FileTest, ExtendFileSeriesA) {
         if(header_page_buf.free_page_number == 0){
             break;
         }
-        allocated = file_alloc_page(fd);
+        allocated = file_alloc_page(table_id);
     } 
 
     //test file size increases and free pages are linked
-    allocated = file_alloc_page(fd);
+    allocated = file_alloc_page(table_id);
     //GTEST_COUT(<<"allocated page: "<<allocated);
     /*
     fseek(fp, 0, SEEK_SET);
@@ -210,13 +210,13 @@ TEST_F(FileTest, ExtendFileSeriesA) {
         if(header_page_buf.free_page_number == 0){
             break;
         }
-        allocated = file_alloc_page(fd);
+        allocated = file_alloc_page(table_id);
         count++;
     } 
     ASSERT_EQ(count, header_page_buf.number_of_pages / 2 - 1);
 }
 TEST_F(FileTest, ExtendFileSeriesB) {
-    FILE* fp = fdopen(fd, "rb+");
+    FILE* fp = fdopen(table_id, "rb+");
     h_page_t header_page_buf;
     f_page_t free_page_buf;
     pagenum_t allocated;
@@ -231,11 +231,11 @@ TEST_F(FileTest, ExtendFileSeriesB) {
         if(header_page_buf.free_page_number == 0){
             break;
         }
-        allocated = file_alloc_page(fd);
+        allocated = file_alloc_page(table_id);
     } 
 
     //test file size increases and free pages are linked
-    allocated = file_alloc_page(fd);
+    allocated = file_alloc_page(table_id);
     //GTEST_COUT(<<"allocated page: "<<allocated);
     /*
     fseek(fp, 0, SEEK_SET);
@@ -256,7 +256,7 @@ TEST_F(FileTest, ExtendFileSeriesB) {
         if(header_page_buf.free_page_number == 0){
             break;
         }
-        allocated = file_alloc_page(fd);
+        allocated = file_alloc_page(table_id);
         count++;
     } 
     ASSERT_EQ(count, header_page_buf.number_of_pages / 2 - 1);

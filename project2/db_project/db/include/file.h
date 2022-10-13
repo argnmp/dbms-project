@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <iostream>
+#include <fcntl.h>
 
 #include "page.h"
 using namespace std;

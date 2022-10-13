@@ -16,7 +16,6 @@ using namespace std;
 #define DELETE_MODIFICATION_THRESHOLD 2500
 #define MAX_VALUE_SIZE 120
 
-
 /*
 #define INITIAL_DB_FILE_SIZE 1146880 
 #define PAGE_SIZE (448)                     // 224bytes
@@ -29,11 +28,7 @@ using namespace std;
 #define MAX_VALUE_SIZE 120
 */
 
-
-
-
 typedef uint64_t pagenum_t;
-
 
 // header page structure
 struct h_page_t {
