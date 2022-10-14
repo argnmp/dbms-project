@@ -11,7 +11,7 @@ using namespace std;
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
 #define DbRandomInsertionDeletionTest 1
-#define DbScanTest 1
+#define DbScanTest 0
 
 class DbTest : public ::testing::Test {
     protected:
@@ -47,7 +47,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
      */
     set<int> rands;
     map<int, string> inserted_values;
-    for(int i = 0; i<=10000; i++){
+    for(int i = 0; i<=1000000; i++){
         int64_t val = insert_range(mt);
         rands.insert(val);
         string value = "thisisvalue";

@@ -9,7 +9,8 @@ using namespace std;
 
 void usage_2( void ) {
     printf("Enter any of the following commands after the prompt > :\n"
-    "\ti <k> <v> -- Insert key <k> (an integer) and value <v> ).\n"
+    "\to <k> -- Open table <k>. If the table does not exist, create new table.\n"
+    "\ti <k> <v> -- Insert key <k> (an integer) and value <v>.\n"
     "\tf <k>  -- Find the value under key <k>.\n"
     "\tr <k1> <k2> -- Print the keys and values found in the range "
             "[<k1>, <k2>]\n"
@@ -72,7 +73,7 @@ int db_client(){
     printf("> ");
     while (scanf("%c", &instruction) != EOF) {
         switch (instruction) {
-        case 'u':
+        case 'o':
             input_values.clear();
             read_inputs(input_values);
             if(input_values.size() != 1){
