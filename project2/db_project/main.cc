@@ -80,6 +80,12 @@ int db_client(){
                 break;
             }
             table_id = open_table(input_values[0].c_str()); 
+            if(table_id==-2){
+                printf("Exceeded maximum number of tables which is 20");
+            }
+            if(table_id==-1){
+                printf("Error opening table");
+            }
             table_name = input_values[0];
             printf("Switched to table %s\n", table_name.c_str());
             break;

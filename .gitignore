@@ -1,2 +1,4 @@
 # Build Files
 project2/db_project/build/
+project2/db_project/.cache/
+project2/db_project/.clang-format

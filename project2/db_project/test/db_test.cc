@@ -10,8 +10,8 @@ using namespace std;
 
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
-#define DbRandomInsertionTest 0
 #define DbRandomInsertionDeletionTest 1
+#define DbScanTest 1
 
 class DbTest : public ::testing::Test {
     protected:
@@ -29,49 +29,6 @@ class DbTest : public ::testing::Test {
         }
 
 };
-/*
-TEST_F(DbTest, BulkInsertDeletionTest){
-    cout << "free pages: " << free_page_count(table_id) << endl;
-    for(int i = 0; i<=10000; i++){
-        string value = "thisisvalue";
-        db_insert(table_id, i, value.c_str(), value.length()); 
-    }
-    cout << "free pages: " << free_page_count(table_id) << endl;
-    for(int i = 0; i<=10000; i++){
-        db_delete(table_id, i); 
-    }
-    cout << "free pages: " << free_page_count(table_id) << endl;
-    
-}
-*/
-
-#if DbRandomInsertionTest
-TEST_F(DbTest, RandomInsertionTest){
-    bool global_procedure_success = true;
-
-    random_device rd;
-    mt19937 mt(rd());
-    uniform_int_distribution<int> insert_range(0, 999999);
-    uniform_int_distribution<int> value_multiplied_range(1, 10);
-    
-    /*
-     * Insert 10000 random numbers in range (0~100000)
-     * For checking the value inserted is same as the found value by db_find, store keys and values in "rands" and "inserted_values"
-     */
-    set<int> rands;
-    map<int, string> inserted_values;
-    for(int i = 0; i<=10000; i++){
-        int64_t val = insert_range(mt);
-        string value = "thisisvalue";
-        for(int k = 0; k<value_multiplied_range(mt); k++){
-            value += to_string(val);
-        }
-        //GTEST_COUT(<<"Inserting: "<<val);
-        int result = db_insert(table_id, val, value.c_str(), value.length());
-        print_tree(table_id, false);
-    }
-}
-#endif
 
 #if DbRandomInsertionDeletionTest
 TEST_F(DbTest, RandomInsertionDeletionTest){
@@ -162,115 +119,40 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
     ASSERT_TRUE(global_procedure_success);
 }
 #endif
-/*
-void random_test(int64_t table_id){
-    printf("------RANDOM_TEST------\n");
+#if DbScanTest
+TEST_F(DbTest, ScanTest){
     bool global_procedure_success = true;
 
     random_device rd;
     mt19937 mt(rd());
-    uniform_int_distribution<int> insert_range(0, 10000);
-    uniform_int_distribution<int> delete_range(0, 1000);
-    uniform_int_distribution<int> value_multiplied_range(1, 20);
+    uniform_int_distribution<int> value_multiplied_range(1, 10);
     
-    set<int> rands;
+    /*
+     * Insert 10000 random numbers in range (0~100000)
+     * For checking the value inserted is same as the found value by db_find, store keys and values in "rands" and "inserted_values"
+     */
     map<int, string> inserted_values;
     for(int i = 0; i<=10000; i++){
-        int64_t val = insert_range(mt);
-        rands.insert(val);
         string value = "thisisvalue";
         for(int k = 0; k<value_multiplied_range(mt); k++){
-            value += to_string(val);
+            value += to_string(i);
         }
-        if(inserted_values.find(val)==inserted_values.end()){
-            inserted_values.insert({val, value}); 
-        }
-        int result = db_insert(table_id, val, value.c_str(), value.length());
-    }
-    cout<< "free pages: " << free_page_count(table_id) << endl;
-    print_tree(table_id, false);
-    print_leaves(table_id);
-    std::vector<int> shuffled_inserted_keys;
-    for(auto i: rands){
-        shuffled_inserted_keys.push_back(i); 
-    }
-    shuffle(shuffled_inserted_keys.begin(), shuffled_inserted_keys.end(), mt);
-    
-    vector<int> not_deleted_keys;
-    for(auto i: shuffled_inserted_keys){
-        char ret_val[120]; 
-        uint16_t val_size;
-        db_find(table_id, i, ret_val, &val_size); 
-        if(memcmp(ret_val, inserted_values[i].c_str(), val_size) != 0){
-            global_procedure_success = false;
-        }
-        
-        if(delete_range(mt)==0){
-            //printf(" do not delete\n");
-            not_deleted_keys.push_back(i);
-            continue;
-        }
-        if(db_delete(table_id, i)!=0){
-            global_procedure_success = false; 
-        }
-    }
-    cout<< "free pages: " << free_page_count(table_id) << endl;
-    print_tree(table_id, false);
-    print_leaves(table_id);
-    
-    print_tree(table_id, true);
-    cout<< "<not_deleted_keys>" << endl;
-    for(auto i: not_deleted_keys){
-        char ret_val[120]; 
-        uint16_t val_size;
-        db_find(table_id, i, ret_val, &val_size); 
-        printf("key: %d, value: ",i);
-        for(int i = 0; i<val_size; i++){
-            printf("%c",ret_val[i]);
-        }
-        if(memcmp(ret_val, inserted_values[i].c_str(), val_size) != 0){
-            global_procedure_success = false;
-        }
-        if(db_delete(table_id, i)!=0){
-            global_procedure_success = false;
-        }
-        cout << endl;
+        int result = db_insert(table_id, i, value.c_str(), value.length());
+        inserted_values.insert({i, value});
+        ASSERT_EQ(result, 0);
     }
 
-    printf("GLOBAL_PROCEDURE_SUCCESS: %d\n",global_procedure_success);
-    printf("--------------END------\n");
-}
-void scan_test(int64_t table_id){
-    random_device rd;
-    mt19937 mt(rd());
-    uniform_int_distribution<int> insert_range(0, 10000);
-    uniform_int_distribution<int> value_multiplied_range(1, 5);
-    
-    for(int i = 0; i<=100; i++){
-        int64_t val = insert_range(mt);
-        string value = "thisisvalue";
-        for(int k = 0; k<value_multiplied_range(mt); k++){
-            value += to_string(val);
-        }
-        int result = db_insert(table_id, val, value.c_str(), value.length());
-    }
-    print_tree(table_id, false);
-
+    int64_t begin_key = 1000;
+    int64_t end_key = 6000;
     vector<int64_t> keys;
     vector<char*> values;
     vector<uint16_t> val_sizes;
-
-    db_scan(table_id, 8000, 100000, &keys, &values, &val_sizes);
-    printf("total-keys-size: %lu, total-values-size: %lu, total-val_sizes-size: %lu\n", keys.size(), values.size(), val_sizes.size());
+    db_scan(table_id, begin_key, end_key, &keys, &values, &val_sizes);
+    ASSERT_EQ(keys.size(), end_key - begin_key + 1);
     for(int i = 0; i<keys.size(); i++){
-        printf("key: %ld | value: ",keys[i]);
-        for(int k = 0; k<val_sizes[i]; k++){
-            printf("%c",values[i][k]); 
-        }
-        printf(" | val_size: %hu\n",val_sizes[i]);
+        int result = memcmp(values[i], inserted_values[keys[i]].c_str(), val_sizes[i]);
+        ASSERT_EQ(result, 0);
     }
-    printf("\n");
-    shutdown_db();
 
 }
-*/
+#endif

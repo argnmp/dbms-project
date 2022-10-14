@@ -1018,7 +1018,7 @@ int dbpt_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<
     }
     bool exit_flag = false;
     while(!exit_flag){
-        for(idx; idx<target.leaf_ptr->number_of_keys; idx++){
+        for(; idx<target.leaf_ptr->number_of_keys; idx++){
             slot_t tmp;
             memcpy(&tmp, target.leaf_ptr->data + idx*SLOT_SIZE, sizeof(tmp));
             if(tmp.get_key() > end_key){

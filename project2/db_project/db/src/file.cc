@@ -8,6 +8,10 @@ int64_t file_open_table_file(const char* pathname) {
     if(target!=opened_tables.end()){
         return target->second; 
     }
+    
+    if(opened_tables.size()>=20){
+        return -2; 
+    }
 
     h_page_t header_page_buf;
     f_page_t free_page_buf;
