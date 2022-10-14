@@ -83,6 +83,7 @@ int db_client(){
             table_id = open_table(input_values[0].c_str()); 
             if(table_id==-2){
                 printf("Exceeded maximum number of tables which is 20");
+                table_id = -1;
                 break;
             }
             if(table_id==-1){
