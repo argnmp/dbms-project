@@ -292,7 +292,6 @@ int main( int argc, char ** argv ) {
     rec.leaf_print_all();
     buf_print();
     */
-    /*
     string pathname = "test.db"; 
     string value = "hello world";
     int64_t table_id = open_table(pathname.c_str());
@@ -310,5 +309,4 @@ int main( int argc, char ** argv ) {
         cout<< free_page_count(table_id) << endl;
         cout << endl;
     }
-    */
 }

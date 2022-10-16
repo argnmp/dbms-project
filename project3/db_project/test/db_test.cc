@@ -22,7 +22,7 @@ class DbTest : public ::testing::Test {
             remove(pathname.c_str());
             pathname = "db_test.db"; 
             table_id = open_table(pathname.c_str()); 
-            init_db();
+            init_db(100);
         }
         ~DbTest() {
             shutdown_db();
