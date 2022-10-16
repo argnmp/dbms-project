@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/build",
+  "command": "/usr/bin/c++  -I/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/build -I/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/include -std=gnu++17 -o CMakeFiles/disk_based_db.dir/main.cc.o -c /home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/main.cc",
+  "file": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/main.cc"
+},
+{
+  "directory": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/build/db",
+  "command": "/usr/bin/c++  -I/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/include -std=gnu++17 -o CMakeFiles/db.dir/src/file.cc.o -c /home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/file.cc",
+  "file": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/file.cc"
+},
+{
+  "directory": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/build/db",
+  "command": "/usr/bin/c++  -I/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/include -std=gnu++17 -o CMakeFiles/db.dir/src/db.cc.o -c /home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/db.cc",
+  "file": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/db.cc"
+},
+{
+  "directory": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/build/db",
+  "command": "/usr/bin/c++  -I/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/include -std=gnu++17 -o CMakeFiles/db.dir/src/dbpt.cc.o -c /home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/dbpt.cc",
+  "file": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/dbpt.cc"
+},
+{
+  "directory": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/build/db",
+  "command": "/usr/bin/c++  -I/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/include -std=gnu++17 -o CMakeFiles/db.dir/src/page.cc.o -c /home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/page.cc",
+  "file": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/page.cc"
+},
+{
+  "directory": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/build/db",
+  "command": "/usr/bin/c++  -I/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/include -std=gnu++17 -o CMakeFiles/db.dir/src/buffer.cc.o -c /home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/buffer.cc",
+  "file": "/home/kimtahen/workspace/2022_ite2038_2019097210/project3/db_project/db/src/buffer.cc"
+}
+]
