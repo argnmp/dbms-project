@@ -70,6 +70,7 @@ int db_client(){
 
     int result;
 
+    init_db(10);
 
     printf("> ");
     while (scanf("%c", &instruction) != EOF) {
@@ -212,6 +213,7 @@ int db_client(){
             break;
         case 'q':
             while (getchar() != (int)'\n');
+            fini_buffer();
             shutdown_db(); 
             return EXIT_SUCCESS;
             break;
@@ -243,9 +245,33 @@ int db_client(){
     printf("\n");
     return EXIT_SUCCESS;    
 }
+void random_insert_test(){
+    init_db(10);
+    string pathname = "test.db"; 
+    int64_t table_id = open_table(pathname.c_str());
+
+    random_device rd;
+    mt19937 mt(rd());
+    uniform_int_distribution<int> insert_range(0, 100);
+    uniform_int_distribution<int> delete_range(0, 100);
+    uniform_int_distribution<int> value_multiplied_range(1, 10);
+    for(int i = 0; i<=10000; i++){
+        int64_t val = insert_range(mt);
+        string value = "thisisvalue";
+        for(int k = 0; k<value_multiplied_range(mt); k++){
+            value += to_string(val);
+        }
+        //GTEST_COUT(<<"Inserting: "<<val);
+        int result = db_insert(table_id, val, value.c_str(), value.length());
+    }
+
+    print_tree(table_id, false);
+    buf_print();
+    shutdown_db();
+
+}
 
 int main( int argc, char ** argv ) {
-    init_buffer(10);
     /*
     string p1 = "test.db"; 
     string p2 = "test2.db"; 
@@ -292,6 +318,7 @@ int main( int argc, char ** argv ) {
     rec.leaf_print_all();
     buf_print();
     */
+    /*
     string pathname = "test.db"; 
     string value = "hello world";
     int64_t table_id = open_table(pathname.c_str());
@@ -309,4 +336,6 @@ int main( int argc, char ** argv ) {
         cout<< free_page_count(table_id) << endl;
         cout << endl;
     }
+    */
+    db_client();
 }

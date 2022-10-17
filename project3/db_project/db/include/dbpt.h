@@ -2,6 +2,7 @@
 #define DB_DBPT_H_
 #include "file.h"
 #include "page.h"
+#include "buffer.h"
 #include <vector>
 #include <cstring>
 #include <queue>

@@ -15,6 +15,18 @@ using namespace std;
 #define SPLIT_THRESHOLD 1984
 #define DELETE_MODIFICATION_THRESHOLD 2500
 #define MAX_VALUE_SIZE 120
+/*
+#define INITIAL_DB_FILE_SIZE 1146880 
+#define PAGE_SIZE (448)                     // 224bytes
+#define PAGE_HEADER_SIZE 128
+#define SLOT_SIZE 12
+#define KPN_SIZE 16
+#define MAX_KPN_NUMBER 20
+#define SPLIT_THRESHOLD 160 //1984
+#define DELETE_MODIFICATION_THRESHOLD 192
+#define MAX_VALUE_SIZE 120
+*/
+
 
 typedef uint64_t pagenum_t;
 

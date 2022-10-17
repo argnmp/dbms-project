@@ -10,8 +10,9 @@ using namespace std;
 
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
-#define DbRandomInsertionDeletionTest 1
-#define DbScanTest 1
+#define DbRandomInsertionDeletionTest 0
+#define DbInsertTest 1
+#define DbScanTest 0
 
 class DbTest : public ::testing::Test {
     protected:
@@ -117,6 +118,17 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
         }
     }
     ASSERT_TRUE(global_procedure_success);
+}
+#endif
+#if DbInsertTest
+TEST_F(DbTest, InsertTest){
+    for(int i = 0; i<=10000; i++){
+        //printf("inserting: %d\n",i);
+        string value = "thisisvalue" + to_string(i);
+        int result = db_insert(table_id, i, value.c_str(), value.length());
+        //buf_print();
+    }
+    print_tree(table_id, false);
 }
 #endif
 #if DbScanTest

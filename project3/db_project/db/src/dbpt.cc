@@ -36,7 +36,7 @@ Node::Node(bool is_leaf, int64_t table_id){
     //printf("create amount_of_free_space: %d\n",leaf_ptr->amount_of_free_space);
 }
 Node::Node(int64_t table_id, pagenum_t pagenum){
-    file_read_page(table_id, pagenum, &default_page);
+    buf_read_page(table_id, pagenum, &default_page);
     if(isLeaf()){
         leaf_ptr = (leaf_page_t*) &default_page;
     }
@@ -68,11 +68,12 @@ Node::~Node(){
 }
 pagenum_t Node::write_to_disk(){
     if(is_on_disk){
-        file_write_page(tid, pn, &default_page);
+        buf_write_page(tid, pn, &default_page);
     }
     else {
-        pagenum_t pagenum = file_alloc_page(tid);
-        file_write_page(tid, pagenum, &default_page);
+        pagenum_t pagenum = buf_alloc_page(tid);
+        buf_write_page(tid, pagenum, &default_page);
+        
         pn = pagenum;
         is_on_disk = true;
     }
@@ -354,13 +355,15 @@ void set_root_pagenum(int64_t table_id, pagenum_t pagenum){
 void print_tree(int64_t table_id, bool pagenum_p){
     printf("================PRINT_TREE===============\n");
     h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
+
     if(header_node.root_page_number == 0){
         printf("Empty tree\n");
     } 
     queue<pair<pagenum_t, int>> q; 
     q.push({header_node.root_page_number, 0});
     if(pagenum_p) printf("<%lu>\n", header_node.root_page_number);
+
     int cur_rank = 0;
     while(!q.empty()){
         auto t = q.front();
@@ -390,7 +393,12 @@ void print_tree(int64_t table_id, bool pagenum_p){
             }
             printf(" ");
         }
+        //?
+        buf_unpin(table_id, target.pn);
     }
+
+    //?
+    buf_unpin(table_id, 0);
     printf("\n");
     printf("=========================================\n");
     printf("\n");
@@ -427,28 +435,6 @@ void print_leaves(int64_t table_id){
 
 
 Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
-    //traverse, using node poitner, important!!!!
-    /*
-    Node* cursor = new Node(table_id, root);
-    while(!cursor->isLeaf()){
-        int i = 0;
-        kpn_t tmp;
-        pagenum_t next_pagenum = cursor->internal_ptr->one_more_page_number;
-        while (i < cursor->internal_ptr->number_of_keys){
-            tmp = cursor->internal_get_kpn_index(i);
-            if (key >= tmp.get_key()){
-                i++;
-                next_pagenum = tmp.get_pagenum();
-            }
-            else {
-                break; 
-            }
-        }
-        delete cursor;
-        cursor = new Node(table_id, next_pagenum);
-    }
-    return *cursor;
-    */
     Node cursor(table_id, root);
     while(!cursor.isLeaf()){
         int i = 0;
@@ -464,29 +450,40 @@ Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
                 break; 
             }
         }
+        //?
+        buf_unpin(table_id, cursor.pn);
         cursor = Node(table_id, next_pagenum);
     }
     return cursor;
 }
 
 int insert_into_new_root(int64_t table_id, Node left, Node right, int64_t key){
+    //printf("insert_into_new_root\n");
     Node root(false, table_id); 
     root.internal_set_kpn_index(key, right.pn, 0);    
     root.internal_set_leftmost_pagenum(left.pn);
     root.internal_ptr->number_of_keys += 1;
     root.internal_ptr->parent_page_number = 0;
     pagenum_t root_pn = root.write_to_disk();
+    //?
+    buf_unpin(table_id, root.pn);
     
     //set header page and write
     h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
     header_node.root_page_number = root_pn;
-    file_write_page(table_id, 0, (page_t*) &header_node);
+    buf_write_page(table_id, 0, (page_t*) &header_node);
+    //?
+    buf_unpin(table_id, 0);
 
     left.default_page.parent_page_number = root_pn;
     right.default_page.parent_page_number = root_pn;
     left.write_to_disk();
     right.write_to_disk();
+    
+    //?
+    buf_unpin(table_id, left.pn);
+    buf_unpin(table_id, right.pn);
 
     return 0;
 }
@@ -504,6 +501,10 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
     int result = parent.internal_insert(key, right.pn);
     if(result==0){
         parent.write_to_disk();
+        //?
+        buf_unpin(table_id, parent.pn);
+        buf_unpin(table_id, left.pn);
+        buf_unpin(table_id, right.pn);
         return 0;
     }
     else if(result==-2){
@@ -512,7 +513,6 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
         return -1;
     }
     else {
-        //cout << "parent split!" << endl;
         //split parent and insert 
         Node cinternal = parent;
         Node new_internal(false, table_id);
@@ -558,16 +558,28 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
         }
         //new node should have pagenum!!!
         new_internal.write_to_disk();
+
         Node child(table_id, new_internal.internal_ptr->one_more_page_number);
         child.default_page.parent_page_number = new_internal.pn;
         child.write_to_disk();
+        //?
+        buf_unpin(table_id, child.pn);
+
         for(int i = 0; i<new_internal.internal_ptr->number_of_keys; i++){
             kpn_t tmp = new_internal.internal_get_kpn_index(i);
             Node child(table_id, tmp.get_pagenum());
             child.default_page.parent_page_number = new_internal.pn;
             child.write_to_disk();
+            //?
+            buf_unpin(table_id, child.pn);
         }
         parent.write_to_disk();
+
+        //?
+        buf_unpin(table_id, left.pn);
+        buf_unpin(table_id, right.pn);
+
+        //parent and new_internal recursively called, so do not unpin
         return insert_into_parent(table_id, parent, new_internal, k_prime);
     }
     
@@ -576,16 +588,24 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
 int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
     //tree does not exist
     h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
 
     if(header_node.root_page_number == 0) {
+        //?
+        buf_unpin(table_id, 0);
+
         //create new leaf node
         Node leaf(true, table_id);
         leaf.leaf_insert(key, value, val_size);
         pagenum_t pn = leaf.write_to_disk();
-        file_read_page(table_id, 0, (page_t*) &header_node);      
+        //?
+        buf_unpin(table_id, pn);
+
+        buf_read_page(table_id, 0, (page_t*) &header_node);      
         header_node.root_page_number = pn;
-        file_write_page(table_id, 0, (page_t*) &header_node);
+        buf_write_page(table_id, 0, (page_t*) &header_node);
+        //?
+        buf_unpin(table_id, 0);
         return 0;
     }
 
@@ -595,10 +615,16 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
     if(result==0){
         //insert into leaf if the space exists.
         target_leaf.write_to_disk(); 
+        //?
+        buf_unpin(table_id, 0);
+        buf_unpin(table_id, target_leaf.pn);
         return 0;
     }
     else if(result == -2){
         //duplicate key exists.
+        //?
+        buf_unpin(table_id, 0);
+        buf_unpin(table_id, target_leaf.pn);
         return -1;
     }
     else {
@@ -658,6 +684,14 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
         slot_t tmp;
         new_leaf.leaf_move_slot(&tmp, 0);
 
+
+        //?
+        /*
+        buf_unpin(table_id, target_leaf.pn);
+        buf_unpin(table_id, new_leaf.pn);
+        */
+
+        buf_unpin(table_id, 0);
         //new node should have pagenum!!
         return insert_into_parent(table_id, target_leaf, new_leaf, tmp.get_key());
     }

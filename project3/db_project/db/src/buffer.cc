@@ -60,7 +60,7 @@ int init_buffer(int num_buf){
 int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     //cache hit!
     if(Buffer.page_buf_block_map.find({table_id, pagenum})!=Buffer.page_buf_block_map.end()){
-        printf("Cache hit\n");
+        //printf("Cache hit\n");
         memcpy(dest, Buffer.page_buf_block_map[{table_id,pagenum}]->frame, PAGE_SIZE);
         Buffer.page_buf_block_map[{table_id, pagenum}]->is_pinned += 1;
         return 0;      
@@ -68,7 +68,7 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     
     //Buffer is not full 
     if(Buffer.frame_total > Buffer.frame_in_use){
-        printf("Buf control block not full, so insert\n");
+        //printf("Buf control block not full, so insert\n");
 
         // new buf_block initialize
         buf_block_t* new_buf_block = alloc_buf_block_t(true, table_id, pagenum); 
@@ -86,14 +86,14 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         return 0;
     } 
     if(Buffer.frame_total < Buffer.frame_in_use){
-        printf("Must not be occured case occured!\n");
+        //printf("Must not be occured case occured!\n");
         return -1;
     } 
 
     /*
      * eviction phase
      */
-    printf("Buf Eviction\n");
+    //printf("Buf Eviction\n");
 
     // Buffer is full, evict the victim page, traversing from tail.
     buf_block_t* cur = Buffer.tail->prev; 
@@ -107,7 +107,7 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     }
     // cannot find victim
     if(cur->table_id==-2){
-        printf("ERROR: BUFFER is full and all frames are in use\n");
+        //printf("ERROR: BUFFER is full and all frames are in use\n");
         return -1;
     }
     // evict the victim and load page from disk 
@@ -135,13 +135,13 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
 int alloc_frame(int64_t table_id, pagenum_t pagenum){
     //cache hit!
     if(Buffer.page_buf_block_map.find({table_id, pagenum})!=Buffer.page_buf_block_map.end()){
-        printf("ERROR: should never be the case!\n");
+        //printf("ERROR: should never be the case!\n");
         return -1;
     }
     
     //Buffer is not full 
     if(Buffer.frame_total > Buffer.frame_in_use){
-        printf("Buf control block not full, so insert\n");
+        //printf("Buf control block not full, so insert\n");
 
         // new buf_block initialize
         buf_block_t* new_buf_block = alloc_buf_block_t(true, table_id, pagenum); 
@@ -155,14 +155,14 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
         return 0;
     } 
     if(Buffer.frame_total < Buffer.frame_in_use){
-        printf("Must not be occured case occured!\n");
+        //printf("Must not be occured case occured!\n");
         return -1;
     } 
 
     /*
      * eviction phase
      */
-    printf("Buf Eviction\n");
+    //printf("Buf Eviction\n");
 
     // Buffer is full, evict the victim page, traversing from tail.
     buf_block_t* cur = Buffer.tail->prev; 
@@ -176,7 +176,7 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
     }
     // cannot find victim
     if(cur->table_id==-2){
-        printf("ERROR: BUFFER is full and all frames are in use\n");
+        //printf("ERROR: BUFFER is full and all frames are in use\n");
         return -1;
     }
     // evict the victim and load page from disk 
@@ -199,7 +199,17 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
 }
 
 pagenum_t buf_alloc_page(int64_t table_id){
+    if(Buffer.page_buf_block_map.find({table_id, 0})!=Buffer.page_buf_block_map.end() && Buffer.page_buf_block_map[{table_id, 0}]->is_dirty == 1){
+        //? pin unpin think
+        file_write_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[{table_id, 0}]->frame);
+        Buffer.page_buf_block_map[{table_id, 0}]->is_dirty = 0;
+    }
     pagenum_t allocated_pagenum = file_alloc_page(table_id); 
+    if(Buffer.page_buf_block_map.find({table_id, 0})!=Buffer.page_buf_block_map.end()){
+        //? pin unpin think
+        file_read_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[{table_id, 0}]->frame);
+    }
+    //printf("allocated_pagenum: %d\n",allocated_pagenum);
     int result = alloc_frame(table_id, allocated_pagenum);
     if(result == -1) {
         file_free_page(table_id, allocated_pagenum); 
@@ -211,7 +221,7 @@ pagenum_t buf_alloc_page(int64_t table_id){
 // think about pin count!!
 int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src){
     if(Buffer.page_buf_block_map.find({table_id, pagenum})!=Buffer.page_buf_block_map.end()){
-        printf("Cache hit from buf_write_page\n");
+        //printf("Cache hit from buf_write_page\n");
         memcpy(Buffer.page_buf_block_map[{table_id,pagenum}]->frame, src, PAGE_SIZE);
         Buffer.page_buf_block_map[{table_id, pagenum}]->is_dirty = 1;
         //Buffer.page_buf_block_map[{table_id, pagenum}]->is_pinned += 1;
@@ -240,13 +250,18 @@ int buf_unpin(int64_t table_id, pagenum_t pagenum){
         Buffer.page_buf_block_map[{table_id, pagenum}]->is_pinned -= 1;
         return 0;
     }
-    printf("unpin failed\n");
+    //printf("unpin failed\n");
     return -1;
 }
 
 void fini_buffer(){
+    printf("fini_buffer\n");
     buf_block_t* cur = Buffer.head->next;
     while(cur != Buffer.tail){
+        if(cur->is_dirty==1){
+            file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
+            cur->is_dirty=0;
+        }  
         printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
         buf_block_t* nextptr = cur->next;
         free(cur->frame);
