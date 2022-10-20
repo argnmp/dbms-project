@@ -70,7 +70,7 @@ int db_client(){
 
     int result;
 
-    init_db(10);
+    init_db(50);
 
     printf("> ");
     while (scanf("%c", &instruction) != EOF) {
@@ -213,7 +213,6 @@ int db_client(){
             break;
         case 'q':
             while (getchar() != (int)'\n');
-            fini_buffer();
             shutdown_db(); 
             return EXIT_SUCCESS;
             break;
@@ -233,6 +232,11 @@ int db_client(){
             else {
                 printf("Changed not to print page numbers of tree");
             }
+            break;
+        case 'b':
+            printf("Buffer status\n");
+            buf_print();
+            while (getchar() != (int)'\n');
             break;
         default:
             usage_2();

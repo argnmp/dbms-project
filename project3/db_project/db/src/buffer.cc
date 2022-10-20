@@ -63,6 +63,9 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         //printf("Cache hit\n");
         memcpy(dest, Buffer.page_buf_block_map[{table_id,pagenum}]->frame, PAGE_SIZE);
         Buffer.page_buf_block_map[{table_id, pagenum}]->is_pinned += 1;
+        buf_block_t* target = Buffer.page_buf_block_map[{table_id, pagenum}];
+        Buffer.remove_frame(target);
+        Buffer.add_frame_front(target);
         return 0;      
     }
     

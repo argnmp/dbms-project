@@ -11,8 +11,12 @@ using namespace std;
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
 #define DbRandomInsertionDeletionTest 0
-#define DbInsertTest 1
 #define DbScanTest 0
+
+//mock test
+#define DbInsertTest 1
+#define DbRandomInsertTest 0
+#define DbFixedRandomInsertTest 0
 
 class DbTest : public ::testing::Test {
     protected:
@@ -23,7 +27,7 @@ class DbTest : public ::testing::Test {
             remove(pathname.c_str());
             pathname = "db_test.db"; 
             table_id = open_table(pathname.c_str()); 
-            init_db(100);
+            init_db(30);
         }
         ~DbTest() {
             shutdown_db();
@@ -122,13 +126,50 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
 #endif
 #if DbInsertTest
 TEST_F(DbTest, InsertTest){
-    for(int i = 0; i<=10000; i++){
+    for(int i = 0; i<=100000; i++){
         //printf("inserting: %d\n",i);
         string value = "thisisvalue" + to_string(i);
         int result = db_insert(table_id, i, value.c_str(), value.length());
         //buf_print();
     }
     print_tree(table_id, false);
+}
+#endif
+#if DbRandomInsertTest
+TEST_F(DbTest, RandomInsertTest){
+    random_device rd;
+    mt19937 mt(rd());
+    uniform_int_distribution<int> insert_range(0, 1000000);
+    uniform_int_distribution<int> value_multiplied_range(1, 10);
+    for(int i = 0; i<=100000; i++){
+        int64_t val = insert_range(mt);
+        string value = "thisisvalue";
+        for(int k = 0; k<value_multiplied_range(mt); k++){
+            value += to_string(val);
+        }
+        //GTEST_COUT(<<"Inserting: "<<val);
+        int result = db_insert(table_id, val, value.c_str(), value.length());
+    }
+    //print_tree(table_id, false);
+}
+#endif
+#if DbFixedRandomInsertTest
+TEST_F(DbTest, FixedRandomInsertTest){
+    random_device rd;
+    mt19937 mt(rd());
+    uniform_int_distribution<int> insert_range(0, 1000000);
+    uniform_int_distribution<int> value_multiplied_range(1, 10);
+    vector<int> keys;
+    for(int64_t i = 0; i<=100000; i++) keys.push_back(i);
+    shuffle(keys.begin(), keys.end(), mt);
+
+    for(auto i: keys){
+        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        //GTEST_COUT(<<"Inserting: "<<val);
+        //printf("inserting %d\n",i);
+        int result = db_insert(table_id, i, value.c_str(), value.length());
+    }
+    //print_tree(table_id, false);
 }
 #endif
 #if DbScanTest

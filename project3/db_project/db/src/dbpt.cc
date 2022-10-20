@@ -996,13 +996,20 @@ int dbpt_delete(int64_t table_id, int64_t key){
 
 int dbpt_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<int64_t>* keys, std::vector<char*>* values, std::vector<uint16_t>* val_sizes, std::vector<char*>* allocated_memory_ptr){
     h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
     
     if(header_node.root_page_number == 0){
+        //?
+        buf_unpin(table_id, 0);
         return -1;
     } 
-    if(begin_key > end_key) return -1;
+    if(begin_key > end_key){
+        //?
+        buf_unpin(table_id, 0);
+        return -1;
+    }
     Node target = find_leaf(table_id, header_node.root_page_number, begin_key); 
+    buf_unpin(table_id, 0);
     int idx;
     for(idx = 0; idx<target.leaf_ptr->number_of_keys; idx++){
         slot_t tmp;
@@ -1011,10 +1018,13 @@ int dbpt_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<
     }
     if(idx == target.leaf_ptr->number_of_keys){
         if(target.leaf_ptr->right_sibling_page_number == 0){
+            //?
+            buf_unpin(table_id, target.pn);
             return -1;
         }
         else {
             idx = 0;
+            buf_unpin(table_id, target.pn);
             target = Node(table_id, target.leaf_ptr->right_sibling_page_number);
         }
     }
@@ -1037,8 +1047,11 @@ int dbpt_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<
         if(target.leaf_ptr->right_sibling_page_number == 0){
             exit_flag = true;
         }
+        //?
+        buf_unpin(table_id, target.pn);
         target = Node(table_id, target.leaf_ptr->right_sibling_page_number);
         idx = 0;
     }
+    buf_unpin(table_id, target.pn);
     return 0;
 }
