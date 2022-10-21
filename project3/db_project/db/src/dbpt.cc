@@ -73,7 +73,7 @@ pagenum_t Node::write_to_disk(){
     else {
         pagenum_t pagenum = buf_alloc_page(tid);
         buf_write_page(tid, pagenum, &default_page);
-        
+        //printf("allocated: %d\n",pagenum); 
         pn = pagenum;
         is_on_disk = true;
     }

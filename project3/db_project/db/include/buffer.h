@@ -41,6 +41,8 @@ public:
     }
 };
 
+extern int file_io;
+extern int cache_hit;
 extern LRU_Buffer Buffer;
 
 void buf_print();

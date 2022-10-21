@@ -14,9 +14,9 @@ using namespace std;
 #define DbScanTest 0
 
 //mock test
-#define DbInsertTest 1
+#define DbInsertTest 0
 #define DbRandomInsertTest 0
-#define DbFixedRandomInsertTest 0
+#define DbFixedRandomInsertTest 1
 
 class DbTest : public ::testing::Test {
     protected:
@@ -27,7 +27,7 @@ class DbTest : public ::testing::Test {
             remove(pathname.c_str());
             pathname = "db_test.db"; 
             table_id = open_table(pathname.c_str()); 
-            init_db(30);
+            init_db(500);
         }
         ~DbTest() {
             shutdown_db();
@@ -66,6 +66,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
         //GTEST_COUT(<<"Inserting: "<<val);
         int result = db_insert(table_id, val, value.c_str(), value.length());
     }
+        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     /*
      * Create vector of inserted keys and randomly shuffle the keys for testing deletion
@@ -126,13 +127,13 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
 #endif
 #if DbInsertTest
 TEST_F(DbTest, InsertTest){
-    for(int i = 0; i<=100000; i++){
+    for(int i = 0; i<=1000000; i++){
         //printf("inserting: %d\n",i);
         string value = "thisisvalue" + to_string(i);
         int result = db_insert(table_id, i, value.c_str(), value.length());
         //buf_print();
     }
-    print_tree(table_id, false);
+    //print_tree(table_id, false);
 }
 #endif
 #if DbRandomInsertTest
@@ -157,19 +158,20 @@ TEST_F(DbTest, RandomInsertTest){
 TEST_F(DbTest, FixedRandomInsertTest){
     random_device rd;
     mt19937 mt(rd());
-    uniform_int_distribution<int> insert_range(0, 1000000);
-    uniform_int_distribution<int> value_multiplied_range(1, 10);
     vector<int> keys;
     for(int64_t i = 0; i<=100000; i++) keys.push_back(i);
     shuffle(keys.begin(), keys.end(), mt);
 
+    int count = 1;
     for(auto i: keys){
+        //GTEST_COUT(<<"Inserting: "<<i);
+        //printf("count: %d, inserting %d\n",count++,i);
         string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        //GTEST_COUT(<<"Inserting: "<<val);
-        //printf("inserting %d\n",i);
         int result = db_insert(table_id, i, value.c_str(), value.length());
+        //buf_print();
+        //cout<<endl;
     }
-    //print_tree(table_id, false);
+    //printf("free page count: %d\n",free_page_count(table_id));
 }
 #endif
 #if DbScanTest

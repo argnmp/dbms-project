@@ -141,6 +141,7 @@ void file_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* s
 // Close the database file
 void file_close_database_file() {
     for(pair<string, int> file: opened_tables){
+        printf("%s : %lu free pages\n",file.first.c_str(),free_page_count(file.second));
         close(file.second); 
     }
     opened_tables.clear();
