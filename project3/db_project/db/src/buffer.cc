@@ -284,7 +284,6 @@ pagenum_t buf_alloc_page(int64_t table_id){
     if(Buffer.page_buf_block_map.find({table_id, 0})!=Buffer.page_buf_block_map.end()){
         h_page_t* target = (h_page_t*)(Buffer.page_buf_block_map[{table_id, 0}]->frame);
         if(target->free_page_number==0){
-            printf("freepagenumber end\n");
             if(Buffer.page_buf_block_map[{table_id, 0}]->is_dirty == 1){
                 //? pin unpin think
                 file_write_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[{table_id, 0}]->frame);
@@ -340,16 +339,41 @@ int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src
     return 0;
     */
 }
-
-// if the target page is on cache, delete it. if not, just call file_free_page
-// think about synchronization, this function should be pending if other is using page.
+/*
 void buf_free_page(int64_t table_id, pagenum_t pagenum){
     if(Buffer.page_buf_block_map.find({table_id, pagenum})!=Buffer.page_buf_block_map.end()){
-        free(Buffer.page_buf_block_map[{table_id, pagenum}]);
+        free(Buffer.page_buf_block_map[{table_id, pagenum}]->frame);
         Buffer.remove_frame(Buffer.page_buf_block_map[{table_id, pagenum}]);
+        free(Buffer.page_buf_block_map[{table_id, pagenum}]);
+
         Buffer.page_buf_block_map.erase({table_id, pagenum});
     }
     file_free_page(table_id, pagenum);
+}
+*/
+
+// if the target page is on cache, delete it. if not, just call file_free_page
+// this should be called when the resource is allocated
+void buf_free_page(int64_t table_id, pagenum_t pagenum){
+    if(Buffer.page_buf_block_map.find({table_id, 0})!=Buffer.page_buf_block_map.end()){
+        f_page_t free_page_buf;
+        h_page_t* target = (h_page_t*)(Buffer.page_buf_block_map[{table_id, 0}]->frame);
+        pagenum_t temp = target->free_page_number;
+        target->free_page_number = pagenum;
+        Buffer.page_buf_block_map[{table_id, 0}]->is_dirty = 1;
+
+        free_page_buf.next_free_page_number = temp;  
+        file_write_page(table_id, pagenum, (page_t*)&free_page_buf);
+    }
+    else {
+        file_free_page(table_id, pagenum);
+    }
+    free(Buffer.page_buf_block_map[{table_id, pagenum}]->frame);
+    Buffer.remove_frame(Buffer.page_buf_block_map[{table_id, pagenum}]);
+    Buffer.frame_in_use -= 1;
+    free(Buffer.page_buf_block_map[{table_id, pagenum}]);
+
+    Buffer.page_buf_block_map.erase({table_id, pagenum});
 }
 
 int buf_unpin(int64_t table_id, pagenum_t pagenum){

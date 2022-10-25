@@ -10,13 +10,14 @@ using namespace std;
 
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
-#define DbRandomInsertionDeletionTest 0
+#define DbAllInsertDeleteTest 0
 #define DbScanTest 0
 
 //mock test
-#define DbInsertTest 0
-#define DbRandomInsertTest 0
-#define DbFixedRandomInsertTest 1
+#define DbSequentialInsertDeleteSet 0
+#define DbRandomInsertDeleteSet 1
+#define DbBufferSequentialSet 0
+#define DbBufferRandomSet 0
 
 class DbTest : public ::testing::Test {
     protected:
@@ -25,9 +26,9 @@ class DbTest : public ::testing::Test {
         DbTest() {
             //remove existing test db file
             remove(pathname.c_str());
-            pathname = "db_test.db"; 
+            pathname = "a"; 
             table_id = open_table(pathname.c_str()); 
-            init_db(500);
+            init_db(10000);
         }
         ~DbTest() {
             shutdown_db();
@@ -35,8 +36,8 @@ class DbTest : public ::testing::Test {
 
 };
 
-#if DbRandomInsertionDeletionTest
-TEST_F(DbTest, RandomInsertionDeletionTest){
+#if DbAllRandomInserteDeleteTest
+TEST_F(DbTest, AllRandomInsertDeleteTest){
 
     bool global_procedure_success = true;
 
@@ -52,7 +53,7 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
      */
     set<int> rands;
     map<int, string> inserted_values;
-    for(int i = 0; i<=10000; i++){
+    for(int i = 0; i<=100000; i++){
         int64_t val = insert_range(mt);
         rands.insert(val);
         string value = "thisisvalue";
@@ -76,7 +77,6 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
         shuffled_inserted_keys.push_back(i); 
     }
     shuffle(shuffled_inserted_keys.begin(), shuffled_inserted_keys.end(), mt);
-    
     
     /*
      * Delete the keys and the values, in the order of shuffled inserted values.
@@ -125,55 +125,6 @@ TEST_F(DbTest, RandomInsertionDeletionTest){
     ASSERT_TRUE(global_procedure_success);
 }
 #endif
-#if DbInsertTest
-TEST_F(DbTest, InsertTest){
-    for(int i = 0; i<=1000000; i++){
-        //printf("inserting: %d\n",i);
-        string value = "thisisvalue" + to_string(i);
-        int result = db_insert(table_id, i, value.c_str(), value.length());
-        //buf_print();
-    }
-    //print_tree(table_id, false);
-}
-#endif
-#if DbRandomInsertTest
-TEST_F(DbTest, RandomInsertTest){
-    random_device rd;
-    mt19937 mt(rd());
-    uniform_int_distribution<int> insert_range(0, 1000000);
-    uniform_int_distribution<int> value_multiplied_range(1, 10);
-    for(int i = 0; i<=100000; i++){
-        int64_t val = insert_range(mt);
-        string value = "thisisvalue";
-        for(int k = 0; k<value_multiplied_range(mt); k++){
-            value += to_string(val);
-        }
-        //GTEST_COUT(<<"Inserting: "<<val);
-        int result = db_insert(table_id, val, value.c_str(), value.length());
-    }
-    //print_tree(table_id, false);
-}
-#endif
-#if DbFixedRandomInsertTest
-TEST_F(DbTest, FixedRandomInsertTest){
-    random_device rd;
-    mt19937 mt(rd());
-    vector<int> keys;
-    for(int64_t i = 0; i<=100000; i++) keys.push_back(i);
-    shuffle(keys.begin(), keys.end(), mt);
-
-    int count = 1;
-    for(auto i: keys){
-        //GTEST_COUT(<<"Inserting: "<<i);
-        //printf("count: %d, inserting %d\n",count++,i);
-        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        int result = db_insert(table_id, i, value.c_str(), value.length());
-        //buf_print();
-        //cout<<endl;
-    }
-    //printf("free page count: %d\n",free_page_count(table_id));
-}
-#endif
 #if DbScanTest
 TEST_F(DbTest, ScanTest){
     bool global_procedure_success = true;
@@ -210,4 +161,173 @@ TEST_F(DbTest, ScanTest){
     }
 
 }
+#endif
+#if DbSequentialInsertDeleteSet
+class DbSeqTest : public ::testing::Test {
+    protected:
+        int64_t table_id;
+        string pathname;
+        int sample;
+        DbSeqTest() {
+            pathname = "dbseqtest.db"; 
+            sample = 1000000;
+            table_id = open_table(pathname.c_str()); 
+            init_db(1000);
+        }
+        ~DbSeqTest() {
+            shutdown_db();
+        }
+
+};
+TEST_F(DbSeqTest, SequentialInsertTest){
+    for(int i = 0; i<=sample; i++){
+        string value = "thisisvalue" + to_string(i);
+        int result = db_insert(table_id, i, value.c_str(), value.length());
+        
+        // insert should always be successful
+        ASSERT_EQ(result, 0);
+    }
+}
+TEST_F(DbSeqTest, SequentialDeleteTest){
+    for(int i = 0; i<=sample; i++){
+        //printf("inserting: %d\n",i);
+        string value = "thisisvalue" + to_string(i);
+        int result = db_delete(table_id, i);
+        //buf_print();
+
+        // insert should always be successful
+        ASSERT_EQ(result, 0);
+    }
+}
+#endif
+
+#if DbRandomInsertDeleteSet
+
+// It takes a lot of time extending the file size
+class DbRandTest : public ::testing::Test {
+    protected:
+        int64_t table_id;
+        string pathname;
+        int sample;
+        
+        vector<int> insert_keys;
+        vector<int> delete_keys;
+
+        DbRandTest() {
+            sample = 100000;
+            //initialize sample
+            for(int64_t i = 1; i<=sample; i++){
+                insert_keys.push_back(i);
+                delete_keys.push_back(i);
+            }
+            random_device rd;
+            mt19937 mt(rd());
+            shuffle(insert_keys.begin(), insert_keys.end(), mt);
+            shuffle(delete_keys.begin(), delete_keys.end(), mt);
+            
+            pathname = "dbrandtest.db"; 
+
+            table_id = open_table(pathname.c_str()); 
+            init_db(5000);
+        }
+        ~DbRandTest() {
+            shutdown_db();
+        }
+
+};
+TEST_F(DbRandTest, RandomInsertTest){
+    for(auto i: insert_keys){
+        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        int result = db_insert(table_id, i, value.c_str(), value.length());
+        
+        ASSERT_EQ(result, 0);
+    }
+}
+TEST_F(DbRandTest, RandomDeleteTest){
+    for(auto i: delete_keys){
+        int result = db_delete(table_id, i); 
+        ASSERT_EQ(result, 0);
+    }
+
+}
+#endif
+#if DbBufferSequentialSet
+class DbBufferSeqTest : public ::testing::TestWithParam<int> {
+    protected:
+        int64_t table_id;
+        string pathname;
+        int sample;
+        DbBufferTest() {
+            pathname = "dbseqtest.db"; 
+            sample = 1000000;
+            table_id = open_table(pathname.c_str()); 
+            init_db(GetParam());
+        }
+        ~DbBufferTest() {
+            shutdown_db();
+        }
+
+};
+TEST_P(DbBufferTest, SequentialInsertDeleteBufferTest){
+    for(int i = 0; i<=sample; i++){
+        string value = "thisisvalue" + to_string(i);
+        int result = db_insert(table_id, i, value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+    }
+    for(int i = 0; i<=sample; i++){
+        string value = "thisisvalue" + to_string(i);
+        int result = db_delete(table_id, i);
+        ASSERT_EQ(result, 0);
+    }
+}
+INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferTest, testing::Range(1000, 5000, 10));
+#endif
+#if DbBufferRandomSet
+
+// It takes a lot of time extending the file size
+class DbBufferRandTest : public ::testing::TestWithParam<int> {
+    protected:
+        int64_t table_id;
+        string pathname;
+        int sample;
+        
+        vector<int> insert_keys;
+        vector<int> delete_keys;
+
+        DbBufferRandTest() {
+            sample = 100000;
+            //initialize sample
+            for(int64_t i = 1; i<=sample; i++){
+                insert_keys.push_back(i);
+                delete_keys.push_back(i);
+            }
+            random_device rd;
+            mt19937 mt(rd());
+            shuffle(insert_keys.begin(), insert_keys.end(), mt);
+            shuffle(delete_keys.begin(), delete_keys.end(), mt);
+            
+            pathname = "dbrandtest.db"; 
+            remove(pathname.c_str());
+
+            table_id = open_table(pathname.c_str()); 
+            init_db(GetParam());
+        }
+        ~DbBufferRandTest() {
+            shutdown_db();
+        }
+
+};
+TEST_P(DbBufferRandTest, RandomInsertDeleteBufferTest){
+    for(auto i: insert_keys){
+        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        int result = db_insert(table_id, i, value.c_str(), value.length());
+        
+        ASSERT_EQ(result, 0);
+    }
+    for(auto i: delete_keys){
+        int result = db_delete(table_id, i); 
+        ASSERT_EQ(result, 0);
+    }
+}
+INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferRandTest, testing::Range(500, 1500, 10));
 #endif

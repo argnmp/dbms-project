@@ -340,18 +340,6 @@ bool Node::isLeaf(){
     return default_page.is_leaf;
 }
 
-pagenum_t get_root_pagenum(int64_t table_id){
-    h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
-    return header_node.root_page_number;
-}
-void set_root_pagenum(int64_t table_id, pagenum_t pagenum){
-    h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
-    header_node.root_page_number = pagenum;
-    file_write_page(table_id, 0, (page_t*) &header_node);      
-}
-
 void print_tree(int64_t table_id, bool pagenum_p){
     printf("================PRINT_TREE===============\n");
     h_page_t header_node;
@@ -406,12 +394,18 @@ void print_tree(int64_t table_id, bool pagenum_p){
 void print_leaves(int64_t table_id){
     printf("================PRINT_LEAVES===============\n");
     h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
     if(header_node.root_page_number == 0){
         printf("Empty tree\n");
     } 
     Node cur(table_id, header_node.root_page_number);
+
+    //?
+    buf_unpin(table_id, 0);
+
     while(!cur.isLeaf()){
+        //?
+        buf_unpin(table_id, cur.pn);
         cur = Node(table_id, cur.internal_ptr->one_more_page_number);
     }
     while(cur.leaf_ptr->right_sibling_page_number!=0){
@@ -421,6 +415,9 @@ void print_leaves(int64_t table_id){
             printf("{%ld}",tmp.get_key());
         }
         printf(" ");
+
+        //?
+        buf_unpin(table_id, cur.pn);
         cur = Node(table_id, cur.leaf_ptr->right_sibling_page_number);
     }
     for(int i = 0; i<cur.leaf_ptr->number_of_keys; i++){
@@ -428,6 +425,8 @@ void print_leaves(int64_t table_id){
         cur.leaf_move_slot(&tmp, i);
         printf("{%ld}",tmp.get_key());
     }
+    //?
+    buf_unpin(table_id, cur.pn);
     printf("\n");
     printf("==========================================\n");
     printf("\n");
@@ -697,6 +696,11 @@ int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_s
     }
 }
 void coalesce_nodes(int64_t table_id, Node target, Node neighbor, int neighbor_index, int64_t cur_key_prime, int key_prime_index){
+    //printf("coalesce_nodes!\n");
+    /*
+     * target and neighbor is pinning
+     */
+
     /* 
      * if the target node is leftmost child in parent, swap target node with neighbor node.
      * Because all the entries of target node can be pushed to neighbor node, all the entries of neighbor node can be pushed to target node.
@@ -728,6 +732,7 @@ void coalesce_nodes(int64_t table_id, Node target, Node neighbor, int neighbor_i
             Node child(table_id, tmp.get_pagenum());
             child.default_page.parent_page_number = neighbor.pn;
             child.write_to_disk();
+            buf_unpin(table_id, child.pn);
         }
     }
     /*
@@ -751,12 +756,20 @@ void coalesce_nodes(int64_t table_id, Node target, Node neighbor, int neighbor_i
     // so write the neighbor node to disk
     neighbor.write_to_disk();
     Node parent(table_id, target.default_page.parent_page_number);
+
+    buf_unpin(table_id, neighbor.pn);
+
     delete_entry(table_id, parent, cur_key_prime);
     //after deleteing entry from the parent node, free the merged page
-    file_free_page(table_id, target.pn);
+    buf_free_page(table_id, target.pn);
 }
 
 void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbor, int neighbor_index, int64_t cur_key_prime, int key_prime_index){
+    //printf("redistribute_nodes!\n");
+    /*
+     * parent, target, neighbor are pinning now
+     */
+
     /*
      * case: neighbor node is the left of the target node
      */ 
@@ -796,6 +809,8 @@ void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbo
                 Node new_child(table_id, rightmost_kpn.get_pagenum());
                 new_child.default_page.parent_page_number = target.pn;
                 new_child.write_to_disk();
+                
+                buf_unpin(table_id, new_child.pn);
 
                 neighbor.internal_ptr->number_of_keys -= 1;
                 if(PAGE_SIZE - PAGE_HEADER_SIZE - (int)(target.internal_ptr->number_of_keys) * KPN_SIZE < DELETE_MODIFICATION_THRESHOLD){
@@ -830,7 +845,7 @@ void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbo
         }
         else {
             int i;
-            for(i = 0; i<neighbor.leaf_ptr->number_of_keys -1; i++){
+            for(i = 0; i<neighbor.internal_ptr->number_of_keys -1; i++){
                 kpn_t leftmost_kpn = neighbor.internal_get_kpn_index(i);
                 kpn_t new_kpn;
                 new_kpn.set_key(cur_key_prime);
@@ -839,9 +854,12 @@ void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbo
                 neighbor.internal_ptr->one_more_page_number = leftmost_kpn.get_pagenum(); 
                 target.internal_append_unsafe(new_kpn.get_key(), new_kpn.get_pagenum());
 
+
                 Node child(table_id, new_kpn.get_pagenum());
                 child.default_page.parent_page_number = target.pn;
                 child.write_to_disk();
+
+                buf_unpin(table_id, child.pn);
 
                 if(PAGE_SIZE - PAGE_HEADER_SIZE - (int)(target.internal_ptr->number_of_keys) * KPN_SIZE < DELETE_MODIFICATION_THRESHOLD){
                     break;
@@ -863,9 +881,17 @@ void redistribute_nodes(int64_t table_id, Node parent, Node target, Node neighbo
     parent.write_to_disk();
     neighbor.write_to_disk();
     target.write_to_disk();
+    
+    buf_unpin(table_id, parent.pn);
+    buf_unpin(table_id, neighbor.pn);
+    buf_unpin(table_id, target.pn);
 }
 
 void delete_entry(int64_t table_id, Node target, int64_t key){
+    /*
+     * target is pinning now
+     */
+
     //printf("delete entry! key: %d\n",key);
     // remove slot and value 
     if(target.isLeaf()==1){
@@ -881,10 +907,19 @@ void delete_entry(int64_t table_id, Node target, int64_t key){
     //can this be optimized?
     target.write_to_disk();
 
+    h_page_t header_node;
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
+    
+    /*
+     * target, header_node is pinning
+     */
+
     // case : target node is the root 
-    if(target.pn == get_root_pagenum(table_id)){
+    if(target.pn == header_node.root_page_number){
         // case : nonempty root
         if (target.default_page.number_of_keys > 0){
+            buf_unpin(table_id, target.pn);
+            buf_unpin(table_id, 0);
             return;
         }
         
@@ -893,17 +928,32 @@ void delete_entry(int64_t table_id, Node target, int64_t key){
         if (!target.isLeaf()){
             Node child(table_id, target.internal_ptr->one_more_page_number);
             child.default_page.parent_page_number = 0;
-            set_root_pagenum(table_id, child.pn); 
+
+            header_node.root_page_number = child.pn;
+            buf_write_page(table_id, 0, (page_t*)&header_node);
+
             child.write_to_disk();
-            file_free_page(table_id, target.pn);
+            
+            buf_unpin(table_id, child.pn);
+
+            buf_free_page(table_id, target.pn);
         }
         //if the node is leaf node which means only one node exists in the tree. 
         else {
-            file_free_page(table_id, target.pn);
-            set_root_pagenum(table_id, 0);
+            header_node.root_page_number = 0;
+            buf_write_page(table_id, 0, (page_t*)&header_node);
+
+            buf_free_page(table_id, target.pn);
         }
+        buf_unpin(table_id, 0);
         return;
     }
+
+    buf_unpin(table_id, 0);
+    
+    /*
+     * target is pinning now
+     */
 
     uint64_t free_space;
     if(target.isLeaf()){
@@ -914,6 +964,7 @@ void delete_entry(int64_t table_id, Node target, int64_t key){
     }
 
     if(free_space < DELETE_MODIFICATION_THRESHOLD){
+        buf_unpin(table_id, target.pn);
         return;
     }
 
@@ -921,8 +972,12 @@ void delete_entry(int64_t table_id, Node target, int64_t key){
      * node should be merged or if impossible, redistribute.
      */
 
-    //find neighbor 이부분에 오류가 있을수도 있다.
     Node parent(table_id, target.default_page.parent_page_number);
+    
+    /*
+     * target and parent is pinning now
+     */
+
     //parent is always internal node not leaf.
     int i;
     if(parent.internal_ptr->one_more_page_number == target.pn){
@@ -958,6 +1013,11 @@ void delete_entry(int64_t table_id, Node target, int64_t key){
 
     // coalescence or redistribution
     Node neighbor(table_id, neighbor_pagenum);
+
+    /*
+     * target, parent, neighbor is pinning now
+     */
+
     // re-think about the possibility of merge;
     bool can_be_merged = false;
     if(target.isLeaf()){
@@ -970,6 +1030,7 @@ void delete_entry(int64_t table_id, Node target, int64_t key){
             can_be_merged = true;
     }
     if(can_be_merged){
+        buf_unpin(table_id, parent.pn);
         coalesce_nodes(table_id, target, neighbor, neighbor_index, cur_key_prime, key_prime_index);
     }
     else {
@@ -981,16 +1042,19 @@ void delete_entry(int64_t table_id, Node target, int64_t key){
 
 int dbpt_delete(int64_t table_id, int64_t key){
     h_page_t header_node;
-    file_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
 
     if(header_node.root_page_number==0){
+        buf_unpin(table_id, 0);
         return -1;
     }
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
     if(leaf.leaf_find_slot(key)==0){
+        buf_unpin(table_id, 0);
         delete_entry(table_id, leaf, key);
         return 0;
     }
+    buf_unpin(table_id, 0);
     return -1;
 }
 
