@@ -394,7 +394,7 @@ void fini_buffer(){
         file_io+=1;
             cur->is_dirty=0;
         }  
-        printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
+        //printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
         buf_block_t* nextptr = cur->next;
         free(cur->frame);
         free(cur);

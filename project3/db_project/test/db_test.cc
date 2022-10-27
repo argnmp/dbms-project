@@ -5,15 +5,17 @@
 #include <random>
 #include <algorithm>
 #include <sstream>
+#include <fstream>
 
 using namespace std;
 
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
-#define DbAllInsertDeleteTest 0
+#define DbAllRandomInsertDeleteTest 0
 #define DbScanTest 0
 
 //mock test
+#define customTest 0
 #define DbSequentialInsertDeleteSet 0
 #define DbRandomInsertDeleteSet 1
 #define DbBufferSequentialSet 0
@@ -35,8 +37,35 @@ class DbTest : public ::testing::Test {
         }
 
 };
+#if customTest
+class DbBufferSeqTest : public ::testing::TestWithParam<int> {
+    protected:
+        int64_t table_id;
+        string pathname;
+        int sample;
+        DbBufferSeqTest() {
+            pathname = "dbseqtest.db"; 
+            sample = 1000;
+            table_id = open_table(pathname.c_str()); 
+            init_db(1000);
+        }
+        ~DbBufferSeqTest() {
+            shutdown_db();
+        }
 
-#if DbAllRandomInserteDeleteTest
+};
+TEST_P(DbBufferSeqTest, SequentialInsertDeleteBufferTest){
+    for(int i = 1; i<=1000; i++){
+        string value = "thisisvalue" + to_string(i);
+        int result = db_insert(table_id, GetParam()*10000+i, value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+    }
+}
+INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferSeqTest, testing::Range(1, 10, 1));
+
+#endif
+
+#if DbAllRandomInsertDeleteTest
 TEST_F(DbTest, AllRandomInsertDeleteTest){
 
     bool global_procedure_success = true;
@@ -170,7 +199,7 @@ class DbSeqTest : public ::testing::Test {
         int sample;
         DbSeqTest() {
             pathname = "dbseqtest.db"; 
-            sample = 1000000;
+            sample = 1000;
             table_id = open_table(pathname.c_str()); 
             init_db(1000);
         }
@@ -214,7 +243,7 @@ class DbRandTest : public ::testing::Test {
         vector<int> delete_keys;
 
         DbRandTest() {
-            sample = 100000;
+            sample = 1000000;
             //initialize sample
             for(int64_t i = 1; i<=sample; i++){
                 insert_keys.push_back(i);
@@ -224,11 +253,23 @@ class DbRandTest : public ::testing::Test {
             mt19937 mt(rd());
             shuffle(insert_keys.begin(), insert_keys.end(), mt);
             shuffle(delete_keys.begin(), delete_keys.end(), mt);
+
+            /*
+            ifstream insert_keys_s("../../test/insert_keys_10000.txt");
+            ifstream delete_keys_s("../../test/delete_keys_10000.txt");
+            int elem;
+            while(insert_keys_s >> elem){
+                insert_keys.push_back(elem);
+            }
+            while(delete_keys_s >> elem){
+                delete_keys.push_back(elem);
+            }
+            */
             
             pathname = "dbrandtest.db"; 
 
             table_id = open_table(pathname.c_str()); 
-            init_db(5000);
+            init_db(1000000);
         }
         ~DbRandTest() {
             shutdown_db();
@@ -282,6 +323,7 @@ TEST_P(DbBufferTest, SequentialInsertDeleteBufferTest){
 }
 INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferTest, testing::Range(1000, 5000, 10));
 #endif
+
 #if DbBufferRandomSet
 
 // It takes a lot of time extending the file size
@@ -295,7 +337,8 @@ class DbBufferRandTest : public ::testing::TestWithParam<int> {
         vector<int> delete_keys;
 
         DbBufferRandTest() {
-            sample = 100000;
+            sample = 10000;
+            /*
             //initialize sample
             for(int64_t i = 1; i<=sample; i++){
                 insert_keys.push_back(i);
@@ -305,12 +348,24 @@ class DbBufferRandTest : public ::testing::TestWithParam<int> {
             mt19937 mt(rd());
             shuffle(insert_keys.begin(), insert_keys.end(), mt);
             shuffle(delete_keys.begin(), delete_keys.end(), mt);
-            
+            */
+
+            ifstream insert_keys_s("../../test/insert_keys_10000.txt");
+            ifstream delete_keys_s("../../test/delete_keys_10000.txt");
+            int elem;
+            while(insert_keys_s >> elem){
+                insert_keys.push_back(elem);
+            }
+            while(delete_keys_s >> elem){
+                delete_keys.push_back(elem);
+            }
+
             pathname = "dbrandtest.db"; 
             remove(pathname.c_str());
 
             table_id = open_table(pathname.c_str()); 
             init_db(GetParam());
+            GTEST_COUT(<<"Working on : "<<GetParam());
         }
         ~DbBufferRandTest() {
             shutdown_db();
@@ -329,5 +384,5 @@ TEST_P(DbBufferRandTest, RandomInsertDeleteBufferTest){
         ASSERT_EQ(result, 0);
     }
 }
-INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferRandTest, testing::Range(500, 1500, 10));
+INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferRandTest, testing::Range(50, 300, 10));
 #endif
