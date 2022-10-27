@@ -253,38 +253,6 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
     return 0;
 }
 
-/*
-//allocate resource
-pagenum_t buf_alloc_page(int64_t table_id){
-    int cost = 0;
-    if(Buffer.page_buf_block_map.find({table_id, 0})!=Buffer.page_buf_block_map.end() && Buffer.page_buf_block_map[{table_id, 0}]->is_dirty == 1){
-        //? pin unpin think
-        file_write_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[{table_id, 0}]->frame);
-        file_io+=1;
-        cost+=1;
-        Buffer.page_buf_block_map[{table_id, 0}]->is_dirty = 0;
-    }
-    pagenum_t allocated_pagenum = file_alloc_page(table_id); 
-        file_io+=3;
-        cost+=3;
-    if(Buffer.page_buf_block_map.find({table_id, 0})!=Buffer.page_buf_block_map.end()){
-        //? pin unpin think
-        file_read_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[{table_id, 0}]->frame);
-        file_io+=1;
-        cost+=1;
-    }
-    
-    //printf("allocated_pagenum: %d\n",allocated_pagenum);
-    int result = alloc_frame(table_id, allocated_pagenum);
-    if(result == -1) {
-        printf("alloc page failed\n");
-        file_free_page(table_id, allocated_pagenum); 
-        return -1;
-    }
-    alloc_io += cost;
-    return allocated_pagenum;
-}
-*/
 pagenum_t buf_alloc_page(int64_t table_id){
     int cost = 0;
     pagenum_t allocated_pagenum;
@@ -346,18 +314,6 @@ int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src
     return 0;
     */
 }
-/*
-void buf_free_page(int64_t table_id, pagenum_t pagenum){
-    if(Buffer.page_buf_block_map.find({table_id, pagenum})!=Buffer.page_buf_block_map.end()){
-        free(Buffer.page_buf_block_map[{table_id, pagenum}]->frame);
-        Buffer.remove_frame(Buffer.page_buf_block_map[{table_id, pagenum}]);
-        free(Buffer.page_buf_block_map[{table_id, pagenum}]);
-
-        Buffer.page_buf_block_map.erase({table_id, pagenum});
-    }
-    file_free_page(table_id, pagenum);
-}
-*/
 
 // if the target page is on cache, delete it. if not, just call file_free_page
 // this should be called when the resource is allocated
@@ -401,7 +357,7 @@ void fini_buffer(){
         file_io+=1;
             cur->is_dirty=0;
         }  
-        //printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
+        printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
         buf_block_t* nextptr = cur->next;
         free(cur->frame);
         free(cur);

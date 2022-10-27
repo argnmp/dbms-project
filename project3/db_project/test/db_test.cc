@@ -17,9 +17,10 @@ using namespace std;
 //mock test
 #define customTest 0
 #define DbSequentialInsertDeleteSet 0
-#define DbRandomInsertDeleteSet 1
+#define DbRandomInsertDeleteSet 0
 #define DbBufferSequentialSet 0
 #define DbBufferRandomSet 0
+#define DbMultipleTableSet 1
 
 class DbTest : public ::testing::Test {
     protected:
@@ -243,7 +244,7 @@ class DbRandTest : public ::testing::Test {
         vector<int> delete_keys;
 
         DbRandTest() {
-            sample = 1000000;
+            sample = 100000;
             //initialize sample
             for(int64_t i = 1; i<=sample; i++){
                 insert_keys.push_back(i);
@@ -266,9 +267,11 @@ class DbRandTest : public ::testing::Test {
             }
             */
             
+            /*
             pathname = "dbrandtest.db"; 
 
             table_id = open_table(pathname.c_str()); 
+            */
             init_db(1000000);
         }
         ~DbRandTest() {
@@ -288,7 +291,6 @@ TEST_F(DbRandTest, RandomInsertTest){
         ASSERT_EQ(result, 0);
     }
 }
-/*
 TEST_F(DbRandTest, RandomDeleteTest){
     for(auto i: delete_keys){
         int result = db_delete(table_id, i); 
@@ -296,7 +298,6 @@ TEST_F(DbRandTest, RandomDeleteTest){
     }
 
 }
-*/
 #endif
 #if DbBufferSequentialSet
 class DbBufferSeqTest : public ::testing::TestWithParam<int> {
@@ -391,4 +392,97 @@ TEST_P(DbBufferRandTest, RandomInsertDeleteBufferTest){
     }
 }
 INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferRandTest, testing::Range(50, 300, 10));
+#endif
+
+#if DbMultipleTableSet
+class DbMultipleTableTest : public ::testing::Test {
+    protected:
+        int64_t tid1;
+        int64_t tid2;
+        int64_t tid3;
+        string pathname;
+        int sample;
+        vector<int64_t> insert_keys;
+        vector<int64_t> delete_keys;
+        vector<int64_t> insert_keys1;
+        vector<int64_t> delete_keys1;
+        vector<int64_t> insert_keys2;
+        vector<int64_t> delete_keys2;
+
+        DbMultipleTableTest() {
+            sample = 100000;
+            pathname = "a"; 
+            tid1 = open_table(pathname.c_str()); 
+            pathname = "b";
+            tid2 = open_table(pathname.c_str()); 
+            pathname = "c";
+            tid3 = open_table(pathname.c_str()); 
+
+            int elem;
+
+            ifstream insert_keys_s("../../test/insert_keys_100000.txt");
+            ifstream delete_keys_s("../../test/delete_keys_100000.txt");
+            while(insert_keys_s >> elem){
+                insert_keys.push_back(elem);
+            }
+            while(delete_keys_s >> elem){
+                delete_keys.push_back(elem);
+            }
+
+            ifstream insert_keys_s1("../../test/insert_keys_100000_1.txt");
+            ifstream delete_keys_s1("../../test/delete_keys_100000_1.txt");
+            while(insert_keys_s1 >> elem){
+                insert_keys1.push_back(elem);
+            }
+            while(delete_keys_s1 >> elem){
+                delete_keys1.push_back(elem);
+            }
+
+            ifstream insert_keys_s2("../../test/insert_keys_100000_2.txt");
+            ifstream delete_keys_s2("../../test/delete_keys_100000_2.txt");
+            while(insert_keys_s2 >> elem){
+                insert_keys2.push_back(elem);
+            }
+            while(delete_keys_s2 >> elem){
+                delete_keys2.push_back(elem);
+            }
+
+            init_db(10000);
+        }
+        ~DbMultipleTableTest() {
+            shutdown_db();
+        }
+
+};
+TEST_F(DbMultipleTableTest, MultipleTableTest){
+    string value; 
+    int result;
+    
+    for(int i = 0; i<sample; i++){
+        value =  "tid1: thisisvalue" + to_string(insert_keys[i]);
+        result = db_insert(tid1, insert_keys[i], value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+        value =  "tid2: thisisvalue" + to_string(insert_keys1[i]);
+        result = db_insert(tid2, insert_keys1[i], value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+        value =  "tid3: thisisvalue" + to_string(insert_keys2[i]);
+        result = db_insert(tid3, insert_keys2[i], value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+        
+    }
+    /*
+    for(int i = 0; i<sample; i++){
+        value =  "tid1: thisisvalue" + to_string(delete_keys[i]);
+        result = db_insert(tid1, delete_keys[i], value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+        value =  "tid2: thisisvalue" + to_string(delete_keys1[i]);
+        result = db_insert(tid2, delete_keys1[i], value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+        value =  "tid3: thisisvalue" + to_string(delete_keys2[i]);
+        result = db_insert(tid3, delete_keys2[i], value.c_str(), value.length());
+        ASSERT_EQ(result, 0);
+    }
+    */
+}
+
 #endif
