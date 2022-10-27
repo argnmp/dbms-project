@@ -283,7 +283,12 @@ TEST_F(DbRandTest, RandomInsertTest){
         
         ASSERT_EQ(result, 0);
     }
+    for(auto i: delete_keys){
+        int result = db_delete(table_id, i); 
+        ASSERT_EQ(result, 0);
+    }
 }
+/*
 TEST_F(DbRandTest, RandomDeleteTest){
     for(auto i: delete_keys){
         int result = db_delete(table_id, i); 
@@ -291,6 +296,7 @@ TEST_F(DbRandTest, RandomDeleteTest){
     }
 
 }
+*/
 #endif
 #if DbBufferSequentialSet
 class DbBufferSeqTest : public ::testing::TestWithParam<int> {

@@ -12,6 +12,9 @@ using namespace std;
 // keeping this data structure not to open same file multiple times
 extern map<string, int64_t> opened_tables;
 
+extern int64_t fd_map[30];
+extern int64_t fd_count;
+
 // Open existing database file or create one if it doesn't exist
 int64_t file_open_table_file(const char* pathname);
 
@@ -32,5 +35,8 @@ void file_close_database_file();
 
 // Checking functions
 uint64_t free_page_count(int64_t table_id);
+
+// Map table id to fd
+int64_t fd_mapper(int64_t table_id);
 
 #endif  // DB_FILE_H_

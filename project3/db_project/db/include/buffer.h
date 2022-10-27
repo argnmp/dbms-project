@@ -5,6 +5,8 @@
 #include "file.h"
 #include <unordered_map>
 
+typedef uint64_t buf_key_t;
+
 struct frame_t{
     uint8_t data[PAGE_SIZE];
 };
@@ -26,7 +28,7 @@ public:
     int frame_in_use; 
     buf_block_t* head; 
     buf_block_t* tail;
-    map<pair<int64_t, pagenum_t>, buf_block_t*> page_buf_block_map;
+    unordered_map<buf_key_t, buf_block_t*> page_buf_block_map;
 
     LRU_Buffer();
     
