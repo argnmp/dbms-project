@@ -45,6 +45,8 @@ extern LRU_Buffer Buffer;
 void buf_print();
 int init_buffer(int num_buf);
 
+int64_t buf_open_table_file(const char* pathname);
+
 //0: success, -1: failed
 int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest);
 pagenum_t buf_alloc_page(int64_t table_id);

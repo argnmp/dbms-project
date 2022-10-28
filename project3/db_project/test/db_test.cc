@@ -11,7 +11,7 @@ using namespace std;
 
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
-#define DbAllRandomInsertDeleteTest 1
+#define DbAllRandomInsertDeleteTest 0
 #define DbScanTest 0
 
 // these should be set exclusively.
@@ -20,7 +20,7 @@ using namespace std;
 #define DbRandomInsertDeleteSet 0
 #define DbBufferSequentialSet 0
 #define DbBufferRandomSet 0
-#define DbMultipleTableSet 0
+#define DbMultipleTableSet 1
 
 class DbTest : public ::testing::Test {
     protected:
@@ -472,6 +472,7 @@ TEST_F(DbMultipleTableTest, MultipleTableTest){
         ASSERT_EQ(result, 0);
         
     }
+    /*
     for(int i = 0; i<sample; i++){
         value =  "tid1: thisisvalue" + to_string(delete_keys[i]);
         result = db_insert(tid1, delete_keys[i], value.c_str(), value.length());
@@ -483,6 +484,7 @@ TEST_F(DbMultipleTableTest, MultipleTableTest){
         result = db_insert(tid3, delete_keys2[i], value.c_str(), value.length());
         ASSERT_EQ(result, 0);
     }
+    */
 }
 
 #endif

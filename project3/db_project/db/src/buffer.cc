@@ -67,10 +67,16 @@ void buf_print(){
 
 int init_buffer(int num_buf){
     Buffer = LRU_Buffer();
-    //3 buffer frame is the minimum size of buffer. so pre-allocate 3 buffers.
+    //3 buffer frame is the minimum size of buffer. so pre-allocate 5 buffers.
     Buffer.frame_total = 5 + num_buf;
     //Buffer.print_buf_block();
     return 0;
+}
+
+int64_t buf_open_table_file(const char* pathname){
+    //limitation on the number of tables is implemented in file manager.
+    int64_t table_id = file_open_table_file(pathname);  
+    return table_id;
 }
 
 int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){

@@ -3,8 +3,7 @@
 std::vector<char*> allocated_memory_ptr;
 
 int64_t open_table(const char* pathname){
-    //limitation on the number of tables is implemented in file manager.
-    int64_t table_id = file_open_table_file(pathname);  
+    int64_t table_id = buf_open_table_file(pathname);  
     return table_id;
 }
 
