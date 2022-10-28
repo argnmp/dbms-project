@@ -11,16 +11,16 @@ using namespace std;
 
 #define GTEST_COUT(args) std::cerr << "[ RUNNING  ] " args << std::endl;
 
-#define DbAllRandomInsertDeleteTest 0
+#define DbAllRandomInsertDeleteTest 1
 #define DbScanTest 0
 
-//mock test
+// these should be set exclusively.
 #define customTest 0
 #define DbSequentialInsertDeleteSet 0
 #define DbRandomInsertDeleteSet 0
 #define DbBufferSequentialSet 0
 #define DbBufferRandomSet 0
-#define DbMultipleTableSet 1
+#define DbMultipleTableSet 0
 
 class DbTest : public ::testing::Test {
     protected:
@@ -31,7 +31,7 @@ class DbTest : public ::testing::Test {
             remove(pathname.c_str());
             pathname = "a"; 
             table_id = open_table(pathname.c_str()); 
-            init_db(10000);
+            init_db(1000);
         }
         ~DbTest() {
             shutdown_db();
@@ -48,7 +48,7 @@ class DbBufferSeqTest : public ::testing::TestWithParam<int> {
             pathname = "dbseqtest.db"; 
             sample = 1000;
             table_id = open_table(pathname.c_str()); 
-            init_db(1000);
+            init_db(2000);
         }
         ~DbBufferSeqTest() {
             shutdown_db();
@@ -83,7 +83,7 @@ TEST_F(DbTest, AllRandomInsertDeleteTest){
      */
     set<int> rands;
     map<int, string> inserted_values;
-    for(int i = 0; i<=100000; i++){
+    for(int i = 0; i<=10000; i++){
         int64_t val = insert_range(mt);
         rands.insert(val);
         string value = "thisisvalue";
@@ -245,6 +245,7 @@ class DbRandTest : public ::testing::Test {
 
         DbRandTest() {
             sample = 100000;
+            /*
             //initialize sample
             for(int64_t i = 1; i<=sample; i++){
                 insert_keys.push_back(i);
@@ -254,10 +255,19 @@ class DbRandTest : public ::testing::Test {
             mt19937 mt(rd());
             shuffle(insert_keys.begin(), insert_keys.end(), mt);
             shuffle(delete_keys.begin(), delete_keys.end(), mt);
+            
+            for(int i = 0; i<sample; i++){
+                printf("%d ",insert_keys[i]);
+            }
+            printf("\n");
+            for(int i = 0; i<sample; i++){
+                printf("%d ",delete_keys[i]);
+            }
+            printf("\n");
+            */
 
-            /*
-            ifstream insert_keys_s("../../test/insert_keys_10000.txt");
-            ifstream delete_keys_s("../../test/delete_keys_10000.txt");
+            ifstream insert_keys_s("../../test/insert_keys_100000.txt");
+            ifstream delete_keys_s("../../test/delete_keys_100000.txt");
             int elem;
             while(insert_keys_s >> elem){
                 insert_keys.push_back(elem);
@@ -265,14 +275,11 @@ class DbRandTest : public ::testing::Test {
             while(delete_keys_s >> elem){
                 delete_keys.push_back(elem);
             }
-            */
             
-            /*
             pathname = "dbrandtest.db"; 
 
             table_id = open_table(pathname.c_str()); 
-            */
-            init_db(1000000);
+            init_db(100000);
         }
         ~DbRandTest() {
             shutdown_db();
@@ -286,17 +293,12 @@ TEST_F(DbRandTest, RandomInsertTest){
         
         ASSERT_EQ(result, 0);
     }
-    for(auto i: delete_keys){
-        int result = db_delete(table_id, i); 
-        ASSERT_EQ(result, 0);
-    }
 }
 TEST_F(DbRandTest, RandomDeleteTest){
     for(auto i: delete_keys){
         int result = db_delete(table_id, i); 
         ASSERT_EQ(result, 0);
     }
-
 }
 #endif
 #if DbBufferSequentialSet
@@ -307,7 +309,7 @@ class DbBufferSeqTest : public ::testing::TestWithParam<int> {
         int sample;
         DbBufferTest() {
             pathname = "dbseqtest.db"; 
-            sample = 1000000;
+            sample = 100000;
             table_id = open_table(pathname.c_str()); 
             init_db(GetParam());
         }
@@ -328,7 +330,7 @@ TEST_P(DbBufferTest, SequentialInsertDeleteBufferTest){
         ASSERT_EQ(result, 0);
     }
 }
-INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferTest, testing::Range(1000, 5000, 10));
+INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferTest, testing::Range(2000, 3000, 10));
 #endif
 
 #if DbBufferRandomSet
@@ -391,7 +393,7 @@ TEST_P(DbBufferRandTest, RandomInsertDeleteBufferTest){
         ASSERT_EQ(result, 0);
     }
 }
-INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferRandTest, testing::Range(50, 300, 10));
+INSTANTIATE_TEST_SUITE_P(BufSizeTest, DbBufferRandTest, testing::Range(100, 300, 10));
 #endif
 
 #if DbMultipleTableSet
@@ -470,7 +472,6 @@ TEST_F(DbMultipleTableTest, MultipleTableTest){
         ASSERT_EQ(result, 0);
         
     }
-    /*
     for(int i = 0; i<sample; i++){
         value =  "tid1: thisisvalue" + to_string(delete_keys[i]);
         result = db_insert(tid1, delete_keys[i], value.c_str(), value.length());
@@ -482,7 +483,6 @@ TEST_F(DbMultipleTableTest, MultipleTableTest){
         result = db_insert(tid3, delete_keys2[i], value.c_str(), value.length());
         ASSERT_EQ(result, 0);
     }
-    */
 }
 
 #endif

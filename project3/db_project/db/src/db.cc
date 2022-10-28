@@ -44,7 +44,7 @@ int init_db(int num_buf){
 int shutdown_db(){
     //clean up all the allocated memory.
     for (auto i: allocated_memory_ptr){
-        delete i;
+        delete[] i;
     }
     fini_buffer();
     file_close_database_file();

@@ -35,13 +35,7 @@ public:
     void add_frame_front(buf_block_t* target);
     void remove_frame(buf_block_t* target);
 
-    void print_buf_block(){
-        buf_block_t* cur = head->next;
-        while(cur != tail){
-            printf("ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
-            cur = cur->next;
-        }
-    }
+    void print_buf_block();
 };
 
 extern int file_io;

@@ -38,7 +38,7 @@ int init_db(){
 int shutdown_db(){
     //clean up all the allocated memory.
     for (auto i: allocated_memory_ptr){
-        delete i;
+        delete[] i;
     }
     file_close_database_file();
     return 0;

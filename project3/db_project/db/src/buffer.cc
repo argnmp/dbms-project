@@ -1,12 +1,5 @@
 #include "buffer.h"
 
-int file_io = 0;
-int cache_hit = 0;
-int eviction_write = 0;
-int alloc_io = 0;
-int read_page_io = 0;
-int read_cache_hit = 0;
-int eviction_with_write = 0;
 LRU_Buffer Buffer;
 
 buf_key_t tidpn_to_key(pair<int64_t, pagenum_t> tidpn){
@@ -61,14 +54,22 @@ void LRU_Buffer::remove_frame(buf_block_t* target){
     target->prev->next = target->next;  
     target->next->prev = target->prev;
 }
+void LRU_Buffer::print_buf_block(){
+    buf_block_t* cur = head->next;
+    while(cur != tail){
+        printf("ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
+        cur = cur->next;
+    }
+}
 void buf_print(){
     Buffer.print_buf_block();
 }
 
 int init_buffer(int num_buf){
     Buffer = LRU_Buffer();
-    Buffer.frame_total = num_buf;
-    Buffer.print_buf_block();
+    //3 buffer frame is the minimum size of buffer. so pre-allocate 3 buffers.
+    Buffer.frame_total = 5 + num_buf;
+    //Buffer.print_buf_block();
     return 0;
 }
 
@@ -76,8 +77,6 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     //cache hit!
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
         //printf("Cache hit\n");
-        cache_hit += 1;
-        read_cache_hit += 1;
         memcpy(dest, Buffer.page_buf_block_map[tidpn_to_key({table_id,pagenum})]->frame, PAGE_SIZE);
         Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_pinned += 1;
         buf_block_t* target = Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})];
@@ -94,8 +93,6 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         buf_block_t* new_buf_block = alloc_buf_block_t(true, table_id, pagenum); 
         new_buf_block->is_pinned += 1;
         file_read_page(table_id, pagenum, (page_t*)new_buf_block->frame);
-        file_io+=1;
-        read_page_io+=1;
 
         // return cached page
         memcpy(dest, new_buf_block->frame, PAGE_SIZE);
@@ -127,18 +124,6 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         }
         cur = cur->prev;
     }
-    /*
-    if(cur->table_id==-2){
-        cur = Buffer.tail->prev; 
-        while(cur->table_id!=-2){
-            if(cur->is_pinned == 0){
-                break; 
-            }
-            cur = cur->prev;
-        }
-        
-    }
-    */
     // cannot find victim
     if(cur->table_id==-2){
         //printf("ERROR: BUFFER is full and all frames are in use\n");
@@ -147,9 +132,6 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     // evict the victim and load page from disk 
     if(cur->is_dirty==1){
         file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
-        file_io+=1;
-        read_page_io+=1;
-        eviction_write += 1;
         cur->is_dirty=0;
     } 
     Buffer.remove_frame(cur);
@@ -157,8 +139,6 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
 
     cur->is_pinned += 1;
     file_read_page(table_id, pagenum, (page_t*)cur->frame);
-        file_io+=1;
-        read_page_io+=1;
     Buffer.page_buf_block_map.erase(tidpn_to_key({cur->table_id, cur->pagenum}));
     cur->table_id = table_id;
     cur->pagenum = pagenum;
@@ -176,7 +156,7 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
 int alloc_frame(int64_t table_id, pagenum_t pagenum){
     //cache hit!
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
-        printf("ERROR: should never be the case!\n");
+        //printf("ERROR: should never be the case!\n");
         return -1;
     }
     
@@ -196,7 +176,7 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
         return 0;
     } 
     if(Buffer.frame_total < Buffer.frame_in_use){
-        printf("Must not be occured case occured!\n");
+        //printf("Must not be occured case occured!\n");
         return -1;
     } 
 
@@ -215,18 +195,6 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
         }
         cur = cur->prev;
     }
-    /*
-    if(cur->table_id==-2){
-        cur = Buffer.tail->prev; 
-        while(cur->table_id!=-2){
-            if(cur->is_pinned == 0){
-                break; 
-            }
-            cur = cur->prev;
-        }
-        
-    }
-    */
     // cannot find victim
     if(cur->table_id==-2){
         //printf("ERROR: BUFFER is full and all frames are in use\n");
@@ -235,8 +203,6 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
     // evict the victim and load page from disk 
     if(cur->is_dirty==1){
         file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
-        file_io+=1;
-        eviction_write += 1;
         cur->is_dirty=0;
     } 
     Buffer.remove_frame(cur);
@@ -263,19 +229,15 @@ pagenum_t buf_alloc_page(int64_t table_id){
             if(Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->is_dirty == 1){
                 //? pin unpin think
                 file_write_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->frame);
-                file_io+=1;
                 Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->is_dirty = 0;
             }
             allocated_pagenum = file_alloc_page(table_id); 
-            file_io+=3;
             file_read_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->frame);
-            file_io+=1;
         }
         else {
             f_page_t free_page_buf;
             allocated_pagenum = target->free_page_number;
             pread(fd_mapper(table_id), &free_page_buf, PAGE_SIZE, allocated_pagenum * PAGE_SIZE);
-            file_io+=1;
 
             target->free_page_number = free_page_buf.next_free_page_number; 
             Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->is_dirty = 1;
@@ -285,7 +247,7 @@ pagenum_t buf_alloc_page(int64_t table_id){
     }
     int result = alloc_frame(table_id, allocated_pagenum);
     if(result == -1) {
-        printf("alloc page failed\n");
+        //printf("alloc page failed\n");
         file_free_page(table_id, allocated_pagenum); 
         return -1;
     }
@@ -302,17 +264,9 @@ int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src
         return 0;      
     }
     else {
-        printf("This should not be the case!\n");
+        //printf("This should not be the case!\n");
         return -1;
     }
-    /*
-    // If not in Buffer, read
-    if(alloc_frame(table_id, pagenum)==-1) return -1;
-    memcpy(Buffer.page_buf_block_map[{table_id, pagenum}]->frame, src, PAGE_SIZE);
-    Buffer.page_buf_block_map[{table_id, pagenum}]->is_dirty = 1;
-    buf_unpin(table_id, pagenum);
-    return 0;
-    */
 }
 
 // if the target page is on cache, delete it. if not, just call file_free_page
@@ -349,20 +303,21 @@ int buf_unpin(int64_t table_id, pagenum_t pagenum){
 }
 
 void fini_buffer(){
-    printf("fini_buffer, file_io: %d, cache hit: %d, eviction: %d, alloc_io: %d, read_page_io: %d, read_cache_hit: %d\n",file_io,cache_hit,eviction_write, alloc_io, read_page_io, read_cache_hit);
     buf_block_t* cur = Buffer.head->next;
+    //int count = 0;
     while(cur != Buffer.tail){
         if(cur->is_dirty==1){
             file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
-        file_io+=1;
             cur->is_dirty=0;
         }  
-        printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
+        //printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
+        //count+=1;
         buf_block_t* nextptr = cur->next;
         free(cur->frame);
         free(cur);
         cur = nextptr;
     }
+    //printf("buffer usage: %d\n",count);
     free(Buffer.head);
     free(Buffer.tail);
 }

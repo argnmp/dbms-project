@@ -151,14 +151,19 @@ void file_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* s
 
 // Close the database file
 void file_close_database_file() {
+    /*
     for(int i = 0; i<30; i++){
         printf("%d ", fd_map[i]);
     }
+    */
     for(pair<string, int> file: opened_tables){
-        printf("%s %d : %lu free pages\n",file.first.c_str(), fd_map[file.second], free_page_count(file.second));
+        //printf("%s %d : %lu free pages\n",file.first.c_str(), fd_map[file.second], free_page_count(file.second));
         close(fd_map[file.second]); 
     }
-    printf("\n");
+    //printf("\n");
+    memset(fd_map, 0, sizeof(fd_map));
+    fd_count = 0;
+
     opened_tables.clear();
 }
 
