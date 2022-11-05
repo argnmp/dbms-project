@@ -1,6 +1,5 @@
 #include "lock_table.h"
 
-
 struct lock_t {
     lock_t* prev;
     lock_t* next;
@@ -10,9 +9,8 @@ struct lock_t {
 
 typedef struct lock_t lock_t;
 
-unordered_map<pair<int64_t,int64_t>, hash_table_entry, pair_for_hash> hash_table;
-
 pthread_mutex_t lock_table_latch;
+unordered_map<pair<int64_t,int64_t>, hash_table_entry, pair_for_hash> hash_table;
 
 int init_lock_table() {
     pthread_mutexattr_t mtx_attribute;
@@ -23,8 +21,10 @@ int init_lock_table() {
 }
 
 lock_t* lock_acquire(int64_t table_id, int64_t key) {
-    bool is_immediate;
+
     pthread_mutex_lock(&lock_table_latch); 
+
+    bool is_immediate;
     if(hash_table.find({table_id, key})==hash_table.end()){
         hash_table_entry hte;
         hte.table_id = table_id;
@@ -53,25 +53,18 @@ lock_t* lock_acquire(int64_t table_id, int64_t key) {
     if(!is_immediate){
         pthread_cond_wait(&lck->cond, &lock_table_latch);
     }
+
     pthread_mutex_unlock(&lock_table_latch); 
 
-    /*
-    //this is dummy mutex, because each lock hash one conditional variable
-    pthread_mutex_t cond_mutex;
-    pthread_mutexattr_t mtx_attribute;
-    pthread_mutexattr_init(&mtx_attribute);
-    pthread_mutexattr_settype(&mtx_attribute, PTHREAD_MUTEX_NORMAL);
-    pthread_mutex_init(&cond_mutex, &mtx_attribute);
-    */
-    
     return lck;
 };
 
 int lock_release(lock_t* lock_obj) {
-    hash_table_entry* target = lock_obj->sentinel;
-    bool is_immediate;
 
     pthread_mutex_lock(&lock_table_latch); 
+
+    bool is_immediate;
+    hash_table_entry* target = lock_obj->sentinel;
 
     is_immediate = (lock_obj->next == nullptr);
 
@@ -83,13 +76,15 @@ int lock_release(lock_t* lock_obj) {
         target->head = lock_obj->next;
         lock_obj->next->prev = nullptr;
     }
-    
-    pthread_mutex_unlock(&lock_table_latch); 
 
+    //!
     if(!is_immediate){
         pthread_cond_signal(&lock_obj->next->cond);
     }
+
     delete lock_obj;
-    
+
+    pthread_mutex_unlock(&lock_table_latch); 
+
     return 0;
 }
