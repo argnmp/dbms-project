@@ -5,6 +5,6 @@ project2/db_project/.clang-format
 project3/db_project/build/
 project3/db_project/.cache/
 project3/db_project/.clang-format
-project4/db_project/build/
-project4/db_project/.cache/
-project4/db_project/.clang-format
+project4/build/
+project4/.cache/
+project4/.clang-format
