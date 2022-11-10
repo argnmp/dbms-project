@@ -13,16 +13,23 @@ pthread_mutex_t lock_table_latch;
 unordered_map<pair<int64_t,int64_t>, hash_table_entry, pair_for_hash> hash_table;
 
 int init_lock_table() {
+    int result = 0;
+
     pthread_mutexattr_t mtx_attribute;
-    pthread_mutexattr_init(&mtx_attribute);
-    pthread_mutexattr_settype(&mtx_attribute, PTHREAD_MUTEX_NORMAL);
-    pthread_mutex_init(&lock_table_latch, &mtx_attribute);
+    result = pthread_mutexattr_init(&mtx_attribute);
+    if(result!=0) return -1;
+    result = pthread_mutexattr_settype(&mtx_attribute, PTHREAD_MUTEX_NORMAL);
+    if(result!=0) return -1;
+    result = pthread_mutex_init(&lock_table_latch, &mtx_attribute);
+    if(result!=0) return -1;
     return 0;
 }
 
 lock_t* lock_acquire(int64_t table_id, int64_t key) {
+    int result = 0;
 
-    pthread_mutex_lock(&lock_table_latch); 
+    result = pthread_mutex_lock(&lock_table_latch); 
+    if(result!=0) return nullptr;
 
     bool is_immediate;
     if(hash_table.find({table_id, key})==hash_table.end()){
@@ -40,7 +47,10 @@ lock_t* lock_acquire(int64_t table_id, int64_t key) {
     lck->next = nullptr;
     lck->prev = nullptr;
     lck->sentinel = &hash_table[{table_id, key}];
-    lck->cond = PTHREAD_COND_INITIALIZER;
+    //lck->cond = PTHREAD_COND_INITIALIZER;
+    result = pthread_cond_init(&(lck->cond), NULL);
+    if(result!=0) return nullptr;
+
     if(is_immediate){
         target->head = lck;
         target->tail = lck;
@@ -51,17 +61,21 @@ lock_t* lock_acquire(int64_t table_id, int64_t key) {
         target->tail = lck; 
     }
     if(!is_immediate){
-        pthread_cond_wait(&lck->cond, &lock_table_latch);
+        result = pthread_cond_wait(&lck->cond, &lock_table_latch);
+        if(result!=0) return nullptr;
     }
 
-    pthread_mutex_unlock(&lock_table_latch); 
+    result = pthread_mutex_unlock(&lock_table_latch); 
+    if(result!=0) return nullptr;
 
     return lck;
 };
 
 int lock_release(lock_t* lock_obj) {
+    int result = 0;
 
-    pthread_mutex_lock(&lock_table_latch); 
+    result = pthread_mutex_lock(&lock_table_latch); 
+    if(result!=0) return -1;
 
     bool is_immediate;
     hash_table_entry* target = lock_obj->sentinel;
@@ -79,12 +93,14 @@ int lock_release(lock_t* lock_obj) {
 
     //!
     if(!is_immediate){
-        pthread_cond_signal(&lock_obj->next->cond);
+        result = pthread_cond_signal(&lock_obj->next->cond);
+        if(result!=0) return -1;
     }
 
     delete lock_obj;
 
-    pthread_mutex_unlock(&lock_table_latch); 
+    result = pthread_mutex_unlock(&lock_table_latch); 
+    if(result!=0) return -1;
 
     return 0;
 }

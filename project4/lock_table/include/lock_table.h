@@ -7,8 +7,11 @@
 #include <iostream>
 using namespace std;
 
-// https://gist.github.com/eugene-malashkin/884e225ff57aca1b9cbe
 // This is the hash combine function originated from boost::hash_combine
+// https://www.boost.org/doc/libs/1_55_0/doc/html/hash/reference.html#boost.hash_combine
+// https://www.boost.org/doc/libs/1_55_0/doc/html/hash/combine.html](https://www.boost.org/doc/libs/1_55_0/doc/html/hash/combine.html
+// https://stackoverflow.com/questions/7222143/unordered-map-hash-function-c](https://stackoverflow.com/questions/7222143/unordered-map-hash-function-c
+
 template <class T>
 inline void boost_hash_combine(std::size_t& seed, const T& v){
     std::hash<T> hasher;
