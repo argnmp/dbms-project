@@ -1,3 +1,39 @@
+#define main_test 100
+
+#ifdef main_test
+#include "dbpt.h"
+#include "db.h"
+#include "buffer.h"
+#include "trx.h"
+#include <random>
+#include <algorithm>
+#include <sstream>
+#include <set>
+#include <fcntl.h>
+#include <fstream>
+#include <chrono>
+#include <thread>
+#include <time.h>
+#include <pthread.h>
+
+using namespace std;
+void* get_trx_id(void* arg){
+    for(int i = 0; i<100000; i++){
+        trx_begin();
+    }
+}
+int main(){
+    pthread_t workers[100];
+    for(int i = 0; i<100; i++){
+        pthread_create(&workers[i], 0, get_trx_id, NULL);
+    }
+	for (int i = 0; i < 100; i++) {
+		pthread_join(workers[i], NULL);
+	}
+    printf("%d",trx_table.g_trx_id);
+}
+#endif 
+
 #ifdef a
 #include "dbpt.h"
 #include "db.h"
@@ -124,7 +160,8 @@ int main(){
 }
 #endif
 
-#include <lock_table.h>
+#ifdef lock_table_test
+#include "trx.h"
 
 #include <stdio.h>
 #include <pthread.h>
@@ -287,4 +324,4 @@ int main()
 	return 0;
 }
 
-
+#endif

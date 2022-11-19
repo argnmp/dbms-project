@@ -1,7 +1,69 @@
 #include "trx.h"
 
 /*
- * LOCK_TABLE_MODULE_START
+ * TRX_TABLE_MODULE_BEGIN
+ */
+
+int64_t TRX_Table::create_entry(){
+    pthread_mutex_lock(&trx_table_latch); 
+    
+    while(trx_map.find(g_trx_id)!=trx_map.end()){
+        if(g_trx_id == INT_MAX){
+            g_trx_id = 1;
+        }
+        g_trx_id += 1;
+    }
+    trx_map_entry_t tmet = {nullptr, nullptr};
+    trx_map.insert({g_trx_id, tmet});
+
+    pthread_mutex_unlock(&trx_table_latch);
+    
+    return g_trx_id;
+}
+
+int64_t TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
+
+    pthread_mutex_lock(&trx_table_latch); 
+
+    // no entry exists
+    if(trx_map.find(trx_id)==trx_map.end()){
+        pthread_mutex_unlock(&trx_table_latch);
+        return -1;
+    }
+    
+    if(trx_map[trx_id].head == nullptr){
+        trx_map[trx_id].head = lock_obj;
+        trx_map[trx_id].tail = lock_obj;
+    }
+    else {
+        trx_map[trx_id].tail->next_lock = lock_obj;
+        trx_map[trx_id].tail = lock_obj;
+    }
+
+    pthread_mutex_unlock(&trx_table_latch);
+
+    return 0;
+}
+
+TRX_Table trx_table;
+
+// not yet implemented
+int64_t TRX_Table::release_trx_lock_obj(int trx_id){
+    return 0; 
+}
+
+int trx_begin(){
+    return trx_table.create_entry(); 
+}
+
+
+
+/*
+ * TRX_TABLE_MODULE_END
+ */
+
+/*
+ * LOCK_TABLE_MODULE_BEGIN
  */
 
 int debug_count = 0;
@@ -260,52 +322,4 @@ int lock_release(lock_t* lock_obj) {
  * LOCK_TABLE_MODULE_END
  */
 
-int64_t TRX_Table::create_entry(){
-    pthread_mutex_lock(&trx_table_latch); 
-    
-    while(trx_map.find(g_trx_id)!=trx_map.end()){
-        if(g_trx_id == INT_MAX){
-            g_trx_id = 1;
-        }
-        g_trx_id += 1;
-    }
-    trx_map_entry_t tmet = {nullptr, nullptr};
-    trx_map.insert({g_trx_id, tmet});
-
-    pthread_mutex_unlock(&trx_table_latch);
-    
-    return g_trx_id;
-}
-
-int64_t TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
-
-    pthread_mutex_lock(&trx_table_latch); 
-
-    // no entry exists
-    if(trx_map.find(trx_id)==trx_map.end()){
-        pthread_mutex_unlock(&trx_table_latch);
-        return -1;
-    }
-    
-    if(trx_map[trx_id].head == nullptr){
-        trx_map[trx_id].head = lock_obj;
-        trx_map[trx_id].tail = lock_obj;
-    }
-    else {
-        trx_map[trx_id].tail->next_lock = lock_obj;
-        trx_map[trx_id].tail = lock_obj;
-    }
-
-    pthread_mutex_unlock(&trx_table_latch);
-
-    return 0;
-}
-
-// not yet implemented
-int64_t TRX_Table::release_trx_lock_obj(int trx_id){
-    return 0; 
-}
-
-
-TRX_Table trx_table;
 

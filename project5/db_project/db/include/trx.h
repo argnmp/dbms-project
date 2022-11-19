@@ -9,7 +9,9 @@
 
 typedef struct lock_t lock_t;
 
-// trx_table
+/*
+ * TRX_TABLE_MODULE_BEGIN
+ */
 struct trx_map_entry_t {
     lock_t* head;
     lock_t* tail;
@@ -25,8 +27,15 @@ public:
 };
 extern TRX_Table trx_table;
 
+int trx_begin();
+int trx_commit(int trx_id);
+
 /*
- * LOCK_TABLE_MODULE_START
+ * TRX_TABLE_MODULE_END
+ */
+
+/*
+ * LOCK_TABLE_MODULE_BEGIN
  */
 using namespace std;
 
