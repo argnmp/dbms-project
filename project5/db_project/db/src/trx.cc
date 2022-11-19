@@ -4,7 +4,7 @@
  * TRX_TABLE_MODULE_BEGIN
  */
 
-int64_t TRX_Table::create_entry(){
+int TRX_Table::create_entry(){
     pthread_mutex_lock(&trx_table_latch); 
     
     while(trx_map.find(g_trx_id)!=trx_map.end()){
@@ -16,12 +16,18 @@ int64_t TRX_Table::create_entry(){
     trx_map_entry_t tmet = {nullptr, nullptr};
     trx_map.insert({g_trx_id, tmet});
 
+    int return_value = g_trx_id;
+    g_trx_id += 1;
+    if(g_trx_id == INT_MAX){
+        g_trx_id = 1;
+    }
+
     pthread_mutex_unlock(&trx_table_latch);
     
-    return g_trx_id;
+    return return_value;
 }
 
-int64_t TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
+int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
 
     pthread_mutex_lock(&trx_table_latch); 
 
@@ -48,7 +54,7 @@ int64_t TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
 TRX_Table trx_table;
 
 // not yet implemented
-int64_t TRX_Table::release_trx_lock_obj(int trx_id){
+int TRX_Table::release_trx_lock_obj(int trx_id){
     return 0; 
 }
 

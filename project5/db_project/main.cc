@@ -18,8 +18,15 @@
 
 using namespace std;
 void* get_trx_id(void* arg){
-    for(int i = 0; i<100000; i++){
-        trx_begin();
+    for(int i = 0; i<10000; i++){
+        int trx_id = trx_begin();
+        for(int i = 0; i<20; i++){
+            lock_t* lock_obj = new lock_t; 
+            lock_obj->record_id = trx_id;
+            //important to set next_lock to nullptr;
+            lock_obj->next_lock = nullptr;
+            trx_table.connect_lock_obj(trx_id, lock_obj);
+        }
     }
 }
 int main(){
@@ -30,7 +37,22 @@ int main(){
 	for (int i = 0; i < 100; i++) {
 		pthread_join(workers[i], NULL);
 	}
-    printf("%d",trx_table.g_trx_id);
+    for (int i = 1; i<=1000000; i++){
+        lock_t* cursor = trx_table.trx_map[i].head;
+        int counter = 0;
+        while(cursor != nullptr){
+            counter++;
+            cursor = cursor -> next_lock;
+        }
+        if(counter != 20){
+            printf("false\n");
+            return 0;
+        }
+
+        
+    }
+    printf("success");
+    return 0;
 }
 #endif 
 
