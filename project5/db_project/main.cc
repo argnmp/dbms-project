@@ -1,6 +1,7 @@
-#define main_test 100
 
+#define main_test 123
 #ifdef main_test
+
 #include "dbpt.h"
 #include "db.h"
 #include "buffer.h"
@@ -18,25 +19,26 @@
 
 using namespace std;
 void* get_trx_id(void* arg){
-    for(int i = 0; i<10000; i++){
-        int trx_id = trx_begin();
-        for(int i = 0; i<20; i++){
-            lock_t* lock_obj = new lock_t; 
-            lock_obj->record_id = trx_id;
-            //important to set next_lock to nullptr;
-            lock_obj->next_lock = nullptr;
-            trx_table.connect_lock_obj(trx_id, lock_obj);
-        }
+    int trx_id = trx_begin();
+    printf("trx_id: %d\n",trx_id);
+    for(int i = 0; i<100; i++){
+        printf("working: %d\n",i);
+        lock_t* lock_obj = lock_acquire(1, 1, trx_id*1000+i, trx_id, EXCLUSIVE);        
+        lock_obj = lock_acquire(1, 2, trx_id*1000+i, trx_id, EXCLUSIVE);        
+        
     }
+    trx_commit(trx_id);
 }
 int main(){
     pthread_t workers[100];
-    for(int i = 0; i<100; i++){
+    for(int i = 0; i<10; i++){
         pthread_create(&workers[i], 0, get_trx_id, NULL);
     }
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < 10; i++) {
 		pthread_join(workers[i], NULL);
 	}
+    printf("%d", trx_table.trx_map.size());
+    /*
     for (int i = 1; i<=1000000; i++){
         lock_t* cursor = trx_table.trx_map[i].head;
         int counter = 0;
@@ -52,6 +54,7 @@ int main(){
         
     }
     printf("success");
+    */
     return 0;
 }
 #endif 
@@ -182,6 +185,7 @@ int main(){
 }
 #endif
 
+//#define lock_table_test 100
 #ifdef lock_table_test
 #include "trx.h"
 
@@ -212,6 +216,7 @@ int accounts[TABLE_NUMBER][RECORD_NUMBER];
 void*
 transfer_thread_func(void* arg)
 {
+    int trx_id = trx_begin();
 	lock_t*			source_lock;
 	lock_t*			destination_lock;
 	int				source_table_id;
@@ -240,23 +245,25 @@ transfer_thread_func(void* arg)
 			(-1) * money_transferred : money_transferred;
 		
 		/* Acquire lock!! */
-		source_lock = lock_acquire(1, source_table_id, source_record_id, 1, EXCLUSIVE);
+		source_lock = lock_acquire(1, source_table_id, source_record_id, trx_id, EXCLUSIVE);
 
 		/* withdraw */
 		accounts[source_table_id][source_record_id] -= money_transferred;
 
 		/* Acquire lock!! */
 		destination_lock =
-			lock_acquire(1, destination_table_id, destination_record_id, 1, EXCLUSIVE);
+			lock_acquire(1, destination_table_id, destination_record_id, trx_id, EXCLUSIVE);
 
 		/* deposit */
 		accounts[destination_table_id][destination_record_id]
 			+= money_transferred;
 
 		/* Release lock!! */
-		lock_release(destination_lock);
-		lock_release(source_lock);
+		//lock_release(destination_lock);
+		//lock_release(source_lock);
 	}
+
+    trx_commit(trx_id);
 
 	printf("Transfer thread is done.\n");
 
@@ -271,6 +278,7 @@ transfer_thread_func(void* arg)
 void*
 scan_thread_func(void* arg)
 {
+    int trx_id = trx_begin();
 	int				sum_money;
 	lock_t*			lock_array[TABLE_NUMBER][RECORD_NUMBER];
 
@@ -282,7 +290,7 @@ scan_thread_func(void* arg)
 			for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
 				/* Acquire lock!! */
 				lock_array[table_id][record_id] =
-					lock_acquire(1, table_id, record_id, 1, SHARED);
+					lock_acquire(1, table_id, record_id, trx_id, SHARED);
 
 				/* Summation. */
 				sum_money += accounts[table_id][record_id];
@@ -292,7 +300,7 @@ scan_thread_func(void* arg)
 		for (int table_id = 0; table_id < TABLE_NUMBER; table_id++) {
 			for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
 				/* Release lock!! */
-				lock_release(lock_array[table_id][record_id]);
+				//lock_release(lock_array[table_id][record_id]);
 			}
 		}
 
@@ -305,6 +313,7 @@ scan_thread_func(void* arg)
 		}
 	}
 
+    trx_commit(trx_id);
 	printf("Scan thread is done.\n");
 
 	return NULL;
@@ -342,6 +351,25 @@ int main()
 	for (int i = 0; i < SCAN_THREAD_NUMBER; i++) {
 		pthread_join(scan_threads[i], NULL);
 	}
+
+    /*
+     * check connected transaction table objects 
+     * this test is valid when delete lock_obj is disabled in lock_release api
+     */
+    
+    /*
+    for (int i = 1; i < trx_table.g_trx_id; i++){
+        lock_t* cursor = trx_table.trx_map[i].head;
+        int counter = 0;
+        while(cursor != nullptr){
+            counter++;
+            cursor = cursor -> next_lock;
+        }
+        printf("trx id: %d, counter %d\n",i, counter);
+    }
+    */
+    printf("trx_table_size: %d", trx_table.trx_map.size());
+    
 
 	return 0;
 }

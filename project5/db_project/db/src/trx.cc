@@ -5,7 +5,9 @@
  */
 
 int TRX_Table::create_entry(){
-    pthread_mutex_lock(&trx_table_latch); 
+    int result;
+    result = pthread_mutex_lock(&trx_table_latch); 
+    if(result != 0) return 0;
     
     while(trx_map.find(g_trx_id)!=trx_map.end()){
         if(g_trx_id == INT_MAX){
@@ -22,14 +24,17 @@ int TRX_Table::create_entry(){
         g_trx_id = 1;
     }
 
-    pthread_mutex_unlock(&trx_table_latch);
+    result = pthread_mutex_unlock(&trx_table_latch);
+    if(result != 0) return 0;
     
     return return_value;
 }
 
 int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
 
-    pthread_mutex_lock(&trx_table_latch); 
+    int result;
+    result = pthread_mutex_lock(&trx_table_latch); 
+    if(result != 0) return 0;
 
     // no entry exists
     if(trx_map.find(trx_id)==trx_map.end()){
@@ -46,7 +51,8 @@ int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
         trx_map[trx_id].tail = lock_obj;
     }
 
-    pthread_mutex_unlock(&trx_table_latch);
+    result = pthread_mutex_unlock(&trx_table_latch);
+    if(result != 0) return 0;
 
     return 0;
 }
@@ -55,11 +61,41 @@ TRX_Table trx_table;
 
 // not yet implemented
 int TRX_Table::release_trx_lock_obj(int trx_id){
-    return 0; 
+    int result;
+    result = pthread_mutex_lock(&trx_table_latch); 
+    if(result != 0) return 0;
+
+    printf("release trx: %d\n",trx_id);
+
+    // no entry exists
+    if(trx_map.find(trx_id)==trx_map.end()){
+        pthread_mutex_unlock(&trx_table_latch);
+        return 0;
+    }
+    
+    lock_t* cursor = trx_map[trx_id].head;
+    while(cursor != nullptr){
+        printf("record_id: %d\n",cursor->record_id);
+        printf("release\n");
+        lock_t* next = cursor -> next_lock;
+        lock_release(cursor);
+        printf("after release\n");
+        cursor = next;
+    }
+
+    trx_table.trx_map.erase(trx_id);
+
+    result = pthread_mutex_unlock(&trx_table_latch);
+    if(result != 0) return 0;
+    
+    return trx_id; 
 }
 
 int trx_begin(){
     return trx_table.create_entry(); 
+}
+int trx_commit(int trx_id){
+    return trx_table.release_trx_lock_obj(trx_id); 
 }
 
 
@@ -90,6 +126,11 @@ int init_lock_table() {
     return 0;
 }
 
+/*
+bool lock_acquire_deadlock_detection(){
+
+}
+*/
 lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode) {
     //printf("lock_acquire %d, %d, %d\n",table_id, page_id, key);
     int result = 0;
@@ -172,6 +213,9 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
     result = pthread_mutex_unlock(&lock_table_latch); 
     if(result!=0) return nullptr;
 
+    //trx_table connection
+    trx_table.connect_lock_obj(trx_id, lck);
+
     return lck;
 };
 
@@ -179,6 +223,7 @@ int lock_release(lock_t* lock_obj) {
 
     int result = 0;
 
+    printf("lock_release start\n");
     result = pthread_mutex_lock(&lock_table_latch); 
     //printf("lock_release start\n");
     //printf("    lock_release %d, %d, %d\n",lock_obj->sentinel->table_id, lock_obj->sentinel->page_id, lock_obj->record_id);

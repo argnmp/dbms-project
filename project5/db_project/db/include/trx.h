@@ -21,8 +21,14 @@ public:
     unordered_map<int, trx_map_entry_t> trx_map;    
     int g_trx_id = 1;
     pthread_mutex_t trx_table_latch;    
+    
+    // trx_id: success, 0: fail
     int create_entry();
+
+    // 0: success, -1: fail
     int connect_lock_obj(int trx_id, lock_t* lock_obj); 
+
+    // trx_id: success, 0: fail
     int release_trx_lock_obj(int trx_id);
 };
 extern TRX_Table trx_table;
