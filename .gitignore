@@ -8,3 +8,6 @@ project3/db_project/.clang-format
 project4/build/
 project4/.cache/
 project4/.clang-format
+project5/db_project/build/
+project5/db_project/.cache/
+project5/db_project/.clang-format
