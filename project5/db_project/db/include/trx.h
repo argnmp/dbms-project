@@ -102,6 +102,18 @@ int lock_release(lock_t* lock_obj);
  * LOCK_TABLE_MODULE_END
  */
 
+/*
+ * TRX_API_BEGIN
+ */
 
+// 0: success, non-zero: failed
+int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, int trx_id);
+
+// 0: success: non-zero: failed
+int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size, int trx_id);
+
+/*
+ * TRX_API_END
+ */
 #endif
 

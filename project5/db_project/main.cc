@@ -1,5 +1,5 @@
 
-//#define main_test 123
+#define main_test 123
 #ifdef main_test
 
 #include "dbpt.h"
@@ -23,18 +23,23 @@ void* get_trx_id(void* arg){
     //printf("trx_id: %d\n",trx_id);
     for(int i = 0; i<100; i++){
         //printf("working: %d\n",i);
-        lock_t* lock_obj = lock_acquire(1, 1, trx_id*1000+i, trx_id, EXCLUSIVE);        
-        lock_obj = lock_acquire(1, 2, trx_id*1000+i, trx_id, EXCLUSIVE);        
+        lock_t* lock_obj = lock_acquire(1, 1, 1, trx_id, EXCLUSIVE);        
+        if(lock_obj==nullptr){
+            printf("abort!");
+            trx_commit(trx_id);
+            return NULL;
+        }
+        //lock_obj = lock_acquire(1, 2, trx_id*1000+i, trx_id, EXCLUSIVE);        
         
     }
     trx_commit(trx_id);
 }
 int main(){
-    pthread_t workers[100];
-    for(int i = 0; i<10; i++){
+    pthread_t workers[2];
+    for(int i = 0; i<2; i++){
         pthread_create(&workers[i], 0, get_trx_id, NULL);
     }
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < 2; i++) {
 		pthread_join(workers[i], NULL);
 	}
     printf("%d", trx_table.trx_map.size());
@@ -122,7 +127,7 @@ int main(){
 }
 #endif
 
-#define lock_table_test 100
+//#define lock_table_test 100
 #ifdef lock_table_test
 #include "trx.h"
 
@@ -132,11 +137,11 @@ int main(){
 #include <stdlib.h>
 #include <time.h>
 
-#define TRANSFER_THREAD_NUMBER	(8)
-#define SCAN_THREAD_NUMBER		(0)
+#define TRANSFER_THREAD_NUMBER	(10)
+#define SCAN_THREAD_NUMBER		(2)
 
 #define TRANSFER_COUNT			(1000000)
-#define SCAN_COUNT				(1000000)
+#define SCAN_COUNT				(10000)
 
 #define TABLE_NUMBER			(3)
 #define RECORD_NUMBER			(5)
@@ -210,8 +215,8 @@ transfer_thread_func(void* arg)
 		//lock_release(destination_lock);
 		//lock_release(source_lock);
 	}
-
     trx_commit(trx_id);
+
 
 	printf("Transfer thread is done.\n");
 
@@ -231,7 +236,7 @@ scan_thread_func(void* arg)
 	lock_t*			lock_array[TABLE_NUMBER][RECORD_NUMBER];
 
 	for (int i = 0; i < SCAN_COUNT; i++) {
-        //printf("scanning %d\n",i);
+        printf("scanning %d\n",i);
 		sum_money = 0;
 
 		/* Iterate all accounts and summate the amount of money. */
@@ -240,6 +245,11 @@ scan_thread_func(void* arg)
 				/* Acquire lock!! */
 				lock_array[table_id][record_id] =
 					lock_acquire(1, table_id, record_id, trx_id, SHARED);
+                if(lock_array[table_id][record_id] == nullptr) {
+                    printf("abort!\n");
+                    trx_commit(trx_id);
+                    return NULL;
+                }
 
 				/* Summation. */
 				sum_money += accounts[table_id][record_id];
@@ -253,12 +263,17 @@ scan_thread_func(void* arg)
 			}
 		}
 
+        
 		/* Check consistency. */
+        
 		if (sum_money != SUM_MONEY) {
+            /*
 			printf("Inconsistent state is detected!!!!!\n");
 			printf("sum_money : %d\n", sum_money);
 			printf("SUM_MONEY : %d\n", SUM_MONEY);
-			return NULL;
+            trx_commit(trx_id);
+            return NULL;
+            */
 		}
 	}
 
