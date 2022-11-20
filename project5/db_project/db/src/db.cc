@@ -11,7 +11,7 @@ int db_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_siz
     return dbpt_insert(table_id, key, value, val_size);
 }
 
-int db_find_depreciated(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size){
+int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size){
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
     if(header_node.root_page_number==0){

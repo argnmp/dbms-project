@@ -1,6 +1,7 @@
 #include "buffer.h"
 
 LRU_Buffer Buffer;
+pthread_mutex_t buffer_latch;    
 
 buf_key_t tidpn_to_key(pair<int64_t, pagenum_t> tidpn){
     return tidpn.second*100 + (uint64_t)tidpn.first; 
@@ -80,14 +81,25 @@ int64_t buf_open_table_file(const char* pathname){
 }
 
 int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
+    //printf("buf_read_page, checkpoint\n");
+
+    int result;
+    result = pthread_mutex_lock(&buffer_latch); 
+    if(result != 0) return -1;
+    
     //cache hit!
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
         //printf("Cache hit\n");
+        
         memcpy(dest, Buffer.page_buf_block_map[tidpn_to_key({table_id,pagenum})]->frame, PAGE_SIZE);
         Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_pinned += 1;
         buf_block_t* target = Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})];
         Buffer.remove_frame(target);
         Buffer.add_frame_front(target);
+
+        result = pthread_mutex_unlock(&buffer_latch);
+        if(result != 0) return -1;
+
         return 0;      
     }
     
@@ -108,10 +120,16 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         Buffer.frame_in_use++;
         Buffer.page_buf_block_map.insert({tidpn_to_key({table_id, pagenum}),new_buf_block});
 
+        result = pthread_mutex_unlock(&buffer_latch);
+        if(result != 0) return -1;
+
         return 0;
     } 
     if(Buffer.frame_total < Buffer.frame_in_use){
         //printf("Must not be occured case occured!\n");
+        result = pthread_mutex_unlock(&buffer_latch);
+        if(result != 0) return -1;
+
         return -1;
     } 
 
@@ -133,6 +151,10 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     // cannot find victim
     if(cur->table_id==-2){
         //printf("ERROR: BUFFER is full and all frames are in use\n");
+
+        result = pthread_mutex_unlock(&buffer_latch);
+        if(result != 0) return -1;
+
         return -1;
     }
     // evict the victim and load page from disk 
@@ -157,6 +179,11 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     Buffer.add_frame_front(cur);
     
     //printf("Buf Eviction END!!\n");
+
+
+    result = pthread_mutex_unlock(&buffer_latch);
+    if(result != 0) return -1;
+
     return 0;
 }
 int alloc_frame(int64_t table_id, pagenum_t pagenum){
@@ -225,7 +252,15 @@ int alloc_frame(int64_t table_id, pagenum_t pagenum){
     return 0;
 }
 
+// think about buffer_latch again
 pagenum_t buf_alloc_page(int64_t table_id){
+
+    //printf("buf_alloc_page\n");
+
+    int pthread_flag;
+    pthread_flag = pthread_mutex_lock(&buffer_latch); 
+    if(pthread_flag != 0) return -1;
+
     int cost = 0;
     pagenum_t allocated_pagenum;
 
@@ -255,29 +290,57 @@ pagenum_t buf_alloc_page(int64_t table_id){
     if(result == -1) {
         //printf("alloc page failed\n");
         file_free_page(table_id, allocated_pagenum); 
+
+        pthread_flag = pthread_mutex_unlock(&buffer_latch);
+        if(pthread_flag != 0) return -1;
+
         return -1;
     }
+
+    pthread_flag = pthread_mutex_unlock(&buffer_latch);
+    if(pthread_flag != 0) return -1;
+
     return allocated_pagenum;
 }
 
 // think about pin count!! // this should be called only when the resource is allocated
 // think about synchronization, this function should be pending if other is using page.
 int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src){
+    //printf("buf_write_page\n");
+
+    int result;
+    result = pthread_mutex_lock(&buffer_latch); 
+    if(result != 0) return -1;
+
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
         //printf("Cache hit should be occured");
         memcpy(Buffer.page_buf_block_map[tidpn_to_key({table_id,pagenum})]->frame, src, PAGE_SIZE);
         Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_dirty = 1;
+
+        result = pthread_mutex_unlock(&buffer_latch);
+        if(result != 0) return -1;
+
         return 0;      
     }
     else {
         //printf("This should not be the case!\n");
+        
+        result = pthread_mutex_unlock(&buffer_latch);
+        if(result != 0) return -1;
+
         return -1;
     }
 }
 
+// think about buffer_latch again
+
 // if the target page is on cache, delete it. if not, just call file_free_page
 // this should be called when the resource is allocated
 void buf_free_page(int64_t table_id, pagenum_t pagenum){
+    //printf("buf_free_page\n");
+    int result;
+    result = pthread_mutex_lock(&buffer_latch); 
+
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, 0}))!=Buffer.page_buf_block_map.end()){
         f_page_t free_page_buf;
         h_page_t* target = (h_page_t*)(Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->frame);
@@ -297,17 +360,34 @@ void buf_free_page(int64_t table_id, pagenum_t pagenum){
     free(Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]);
 
     Buffer.page_buf_block_map.erase(tidpn_to_key({table_id, pagenum}));
+
+    result = pthread_mutex_unlock(&buffer_latch);
+
 }
 
 int buf_unpin(int64_t table_id, pagenum_t pagenum){
+    //printf("buf_unpin\n");
+
+    int result;
+    result = pthread_mutex_lock(&buffer_latch); 
+    if(result != 0) return -1;
+
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
         Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_pinned -= 1;
+
+        result = pthread_mutex_unlock(&buffer_latch);
+        if(result != 0) return -1;
+
         return 0;
     }
+
+    result = pthread_mutex_unlock(&buffer_latch);
+    if(result != 0) return -1;
     //printf("unpin failed\n");
     return -1;
 }
 
+// do not need to take buffer latch
 void fini_buffer(){
     buf_block_t* cur = Buffer.head->next;
     //int count = 0;

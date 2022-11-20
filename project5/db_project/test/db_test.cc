@@ -17,10 +17,10 @@ using namespace std;
 // these should be set exclusively.
 #define customTest 0
 #define DbSequentialInsertDeleteSet 0
-#define DbRandomInsertDeleteSet 0
+#define DbRandomInsertDeleteSet 1
 #define DbBufferSequentialSet 0
 #define DbBufferRandomSet 0
-#define DbMultipleTableSet 1
+#define DbMultipleTableSet 0
 
 class DbTest : public ::testing::Test {
     protected:
@@ -287,15 +287,17 @@ class DbRandTest : public ::testing::Test {
 
 };
 TEST_F(DbRandTest, RandomInsertTest){
+    //printf("start test\n");
     for(auto i: insert_keys){
+        //printf("inserting %d\n",i);
         string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         int result = db_insert(table_id, i, value.c_str(), value.length());
-        
         ASSERT_EQ(result, 0);
     }
 }
 TEST_F(DbRandTest, RandomDeleteTest){
     for(auto i: delete_keys){
+        //printf("deleting %d\n",i);
         int result = db_delete(table_id, i); 
         ASSERT_EQ(result, 0);
     }

@@ -1,6 +1,7 @@
 #ifndef BUFFER_H_
 #define BUFFER_H_
 #include <stdint.h>
+#include <pthread.h>
 #include "page.h"
 #include "file.h"
 #include <unordered_map>
@@ -22,6 +23,7 @@ struct buf_block_t{
 buf_block_t* alloc_buf_block_t(bool creat_frame, int64_t tid, pagenum_t pn);
 void clear_buf_block_t(buf_block_t* buf_block);
 
+extern pthread_mutex_t buffer_latch;    
 class LRU_Buffer {
 public:
     int frame_total;

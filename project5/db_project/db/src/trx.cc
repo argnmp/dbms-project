@@ -546,8 +546,7 @@ int lock_release(lock_t* lock_obj) {
  */
 
 // 0: success, non-zero: failed
-int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, int trx_id){
-        
+int db_find_not_yet(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, int trx_id){
 }
 
 // 0: success: non-zero: failed
