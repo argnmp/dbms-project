@@ -286,9 +286,13 @@ pagenum_t buf_alloc_page(int64_t table_id){
     } else {
         allocated_pagenum = file_alloc_page(table_id);
     }
-    int result = alloc_frame(table_id, allocated_pagenum);
-    if(result == -1) {
-        //printf("alloc page failed\n");
+    /*
+     * alloc_frame
+     */
+
+    //cache hit!
+    if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, allocated_pagenum}))!=Buffer.page_buf_block_map.end()){
+        //printf("ERROR: should never be the case!\n");
         file_free_page(table_id, allocated_pagenum); 
 
         pthread_flag = pthread_mutex_unlock(&buffer_latch);
@@ -296,7 +300,75 @@ pagenum_t buf_alloc_page(int64_t table_id){
 
         return -1;
     }
+    
+    //Buffer is not full 
+    if(Buffer.frame_total > Buffer.frame_in_use){
+        //printf("Buf control block not full, so insert\n");
 
+        // new buf_block initialize
+        buf_block_t* new_buf_block = alloc_buf_block_t(true, table_id, allocated_pagenum); 
+        new_buf_block->is_pinned += 1;
+
+        // update Buffer 
+        Buffer.add_frame_front(new_buf_block); 
+        Buffer.frame_in_use++;
+        Buffer.page_buf_block_map.insert({tidpn_to_key({table_id, allocated_pagenum}),new_buf_block});
+    } 
+    else {
+        if(Buffer.frame_total < Buffer.frame_in_use){
+            //printf("Must not be occured case occured!\n");
+            file_free_page(table_id, allocated_pagenum); 
+
+            pthread_flag = pthread_mutex_unlock(&buffer_latch);
+            if(pthread_flag != 0) return -1;
+
+            return -1;
+        } 
+
+        /*
+         * eviction phase
+         */
+        //printf("Buf Eviction\n");
+
+        // Buffer is full, evict the victim page, traversing from tail.
+        buf_block_t* cur = Buffer.tail->prev; 
+        // header frame has table id of -2
+        // select victim 
+        while(cur->table_id!=-2){
+            if(cur->is_pinned == 0){
+                break; 
+            }
+            cur = cur->prev;
+        }
+        // cannot find victim
+        if(cur->table_id==-2){
+            //printf("ERROR: BUFFER is full and all frames are in use\n");
+            file_free_page(table_id, allocated_pagenum); 
+
+            pthread_flag = pthread_mutex_unlock(&buffer_latch);
+            if(pthread_flag != 0) return -1;
+
+            return -1;
+        }
+        // evict the victim and load page from disk 
+        if(cur->is_dirty==1){
+            file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
+            cur->is_dirty=0;
+        } 
+        Buffer.remove_frame(cur);
+
+        cur->is_pinned += 1;
+        Buffer.page_buf_block_map.erase(tidpn_to_key({cur->table_id, cur->pagenum}));
+        cur->table_id = table_id;
+        cur->pagenum = allocated_pagenum;
+        Buffer.page_buf_block_map.insert({tidpn_to_key({cur->table_id, cur->pagenum}), cur});
+
+        // update Buffer
+        Buffer.add_frame_front(cur);
+    }
+    /*
+     * alloc_frame
+     */
     pthread_flag = pthread_mutex_unlock(&buffer_latch);
     if(pthread_flag != 0) return -1;
 
