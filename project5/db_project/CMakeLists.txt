@@ -17,7 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Options for libraries
 option(USE_DB "Use the DB library" ON)
-option(USE_GOOGLE_TEST "Use GoogleTest for testing" ON)
+option(USE_GOOGLE_TEST "Use GoogleTest for testing" OFF)
 
 # DB project library
 if(USE_DB)

@@ -1,5 +1,5 @@
 
-#define main_test 123
+//#define main_test 123
 #ifdef main_test
 
 #include "dbpt.h"
@@ -339,3 +339,55 @@ int main()
 }
 
 #endif
+
+#define buffer_test 123
+#ifdef buffer_test
+
+#include "dbpt.h"
+#include "db.h"
+#include "buffer.h"
+#include "trx.h"
+#include <random>
+#include <algorithm>
+#include <sstream>
+#include <set>
+#include <fcntl.h>
+#include <fstream>
+#include <chrono>
+#include <thread>
+#include <time.h>
+#include <pthread.h>
+
+int64_t table_id;
+void* buffer_thread(void* arg){
+    int trx_id = trx_begin();
+    for(int i = 1; i<1000; i++){
+        printf("working %d\n",i);
+        char ret_val[150];
+        uint16_t val_size;
+        db_find(table_id, i, ret_val, &val_size);
+    }
+}
+int main(){
+
+    string pathname = "dbrandtest.db"; 
+
+    table_id = open_table(pathname.c_str()); 
+    init_db(100000);
+
+    for(int i = 0; i<100000; i++){
+        db_insert(table_id, i*1, pathname.c_str(), pathname.length()); 
+    }
+
+    pthread_t workers[10];
+    for(int i = 0; i<10; i++){
+        pthread_create(&workers[i], 0, buffer_thread, NULL);
+    }
+	for (int i = 0; i < 10; i++) {
+		pthread_join(workers[i], NULL);
+	}
+
+    shutdown_db();
+}
+
+#endif 

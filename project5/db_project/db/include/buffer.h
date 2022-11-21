@@ -15,12 +15,13 @@ struct buf_block_t{
     int64_t table_id;
     pagenum_t pagenum; 
     int is_dirty;
-    int is_pinned;
+    //int is_pinned;
+    pthread_mutex_t page_latch;
     frame_t* frame;  
     buf_block_t* next;
     buf_block_t* prev;
 };
-buf_block_t* alloc_buf_block_t(bool creat_frame, int64_t tid, pagenum_t pn);
+buf_block_t* alloc_buf_block_t(bool create_frame, int64_t tid, pagenum_t pn);
 void clear_buf_block_t(buf_block_t* buf_block);
 
 extern pthread_mutex_t buffer_latch;    

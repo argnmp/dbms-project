@@ -26,6 +26,7 @@ public:
     Node(const Node& n);
     Node(bool is_leaf, int64_t table_id);
     Node(int64_t table_id, pagenum_t pagenum);
+    Node(int64_t table_id, pagenum_t pagenum, Node& n1, Node& n2);
 
     Node& operator=(const Node& n);
     

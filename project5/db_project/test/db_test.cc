@@ -279,7 +279,7 @@ class DbRandTest : public ::testing::Test {
             pathname = "dbrandtest.db"; 
 
             table_id = open_table(pathname.c_str()); 
-            init_db(100000);
+            init_db(1000);
         }
         ~DbRandTest() {
             shutdown_db();
@@ -295,6 +295,7 @@ TEST_F(DbRandTest, RandomInsertTest){
         ASSERT_EQ(result, 0);
     }
 }
+/*
 TEST_F(DbRandTest, RandomDeleteTest){
     for(auto i: delete_keys){
         //printf("deleting %d\n",i);
@@ -302,6 +303,7 @@ TEST_F(DbRandTest, RandomDeleteTest){
         ASSERT_EQ(result, 0);
     }
 }
+*/
 #endif
 #if DbBufferSequentialSet
 class DbBufferSeqTest : public ::testing::TestWithParam<int> {

@@ -47,6 +47,52 @@ Node::Node(int64_t table_id, pagenum_t pagenum){
     pn = pagenum;
     is_on_disk = true;
 }
+Node::Node(int64_t table_id, pagenum_t pagenum, Node& n1, Node& n2){
+    if(pagenum == n1.pn){
+        tid = n1.tid;
+        pn = n1.pn;
+        is_on_disk = n1.is_on_disk;
+        default_page.parent_page_number = n1.default_page.parent_page_number;
+        default_page.is_leaf = n1.default_page.is_leaf;
+        default_page.number_of_keys = n1.default_page.number_of_keys;
+        memcpy(default_page.reserved, n1.default_page.reserved, sizeof(default_page.reserved));
+        memcpy(default_page.data, n1.default_page.data, sizeof(default_page.data));
+        if(isLeaf()){
+            leaf_ptr = (leaf_page_t*) &default_page; 
+        }
+        else {
+            internal_ptr = (internal_page_t*) &default_page; 
+        }
+    }
+    else if(pagenum == n2.pn){
+        tid = n2.tid;
+        pn = n2.pn;
+        is_on_disk = n2.is_on_disk;
+        default_page.parent_page_number = n2.default_page.parent_page_number;
+        default_page.is_leaf = n2.default_page.is_leaf;
+        default_page.number_of_keys = n2.default_page.number_of_keys;
+        memcpy(default_page.reserved, n2.default_page.reserved, sizeof(default_page.reserved));
+        memcpy(default_page.data, n2.default_page.data, sizeof(default_page.data));
+        if(isLeaf()){
+            leaf_ptr = (leaf_page_t*) &default_page; 
+        }
+        else {
+            internal_ptr = (internal_page_t*) &default_page; 
+        }
+    }
+    else {
+        buf_read_page(table_id, pagenum, &default_page);
+        if(isLeaf()){
+            leaf_ptr = (leaf_page_t*) &default_page;
+        }
+        else {
+            internal_ptr = (internal_page_t*) &default_page;
+        }
+        tid = table_id; 
+        pn = pagenum;
+        is_on_disk = true;
+    }
+}
 Node& Node::operator=(const Node& n){
     tid = n.tid;
     pn = n.pn;
@@ -71,7 +117,9 @@ pagenum_t Node::write_to_disk(){
         buf_write_page(tid, pn, &default_page);
     }
     else {
+        //printf("before alloc");
         pagenum_t pagenum = buf_alloc_page(tid);
+        //printf("after alloc");
         buf_write_page(tid, pagenum, &default_page);
         //printf("allocated: %d\n",pagenum); 
         pn = pagenum;
@@ -457,7 +505,7 @@ Node find_leaf(int64_t table_id, pagenum_t root, int64_t key){
 }
 
 int insert_into_new_root(int64_t table_id, Node left, Node right, int64_t key){
-    //printf("insert_into_new_root\n");
+    //printf("insert_into_new_root key: %d\n",key);
     Node root(false, table_id); 
     root.internal_set_kpn_index(key, right.pn, 0);    
     root.internal_set_leftmost_pagenum(left.pn);
@@ -558,19 +606,23 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
         //new node should have pagenum!!!
         new_internal.write_to_disk();
 
-        Node child(table_id, new_internal.internal_ptr->one_more_page_number);
+        Node child(table_id, new_internal.internal_ptr->one_more_page_number, left, right);
         child.default_page.parent_page_number = new_internal.pn;
         child.write_to_disk();
         //?
-        buf_unpin(table_id, child.pn);
+        if((new_internal.internal_ptr->one_more_page_number != left.pn)&&(new_internal.internal_ptr->one_more_page_number != right.pn)){
+            buf_unpin(table_id, child.pn);
+        }
 
         for(int i = 0; i<new_internal.internal_ptr->number_of_keys; i++){
             kpn_t tmp = new_internal.internal_get_kpn_index(i);
-            Node child(table_id, tmp.get_pagenum());
+            Node child(table_id, tmp.get_pagenum(),left,right);
             child.default_page.parent_page_number = new_internal.pn;
             child.write_to_disk();
             //?
-            buf_unpin(table_id, child.pn);
+            if((tmp.get_pagenum() != left.pn)&&(tmp.get_pagenum() != right.pn)){
+                buf_unpin(table_id, child.pn);
+            }
         }
         parent.write_to_disk();
 
@@ -585,11 +637,13 @@ int insert_into_parent(int64_t table_id, Node left, Node right, int64_t key){
 }
 
 int dbpt_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size){
+    //printf("dbpt_insert tid: %d, key: %d\n",table_id, key);
     //tree does not exist
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
 
     if(header_node.root_page_number == 0) {
+        //printf("rootpagenumbe 0\n");
         //?
         buf_unpin(table_id, 0);
 
