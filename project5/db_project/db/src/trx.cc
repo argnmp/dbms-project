@@ -546,12 +546,71 @@ int lock_release(lock_t* lock_obj) {
  */
 
 // 0: success, non-zero: failed
-int db_find_not_yet(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, int trx_id){
+int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, int trx_id){
+    h_page_t header_node;
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_unpin(table_id, 0);
+
+    if(header_node.root_page_number==0){
+        return -1;
+    }
+    Node leaf = find_leaf(table_id, header_node.root_page_number, key);
+    int result = leaf.leaf_find_slot(key);
+
+    if(result == -1){
+        buf_unpin(table_id, leaf.pn);
+        return -1;
+    }
+    buf_unpin(table_id, leaf.pn);
+
+    lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, SHARED);        
+    if(lock_obj==nullptr){
+        printf("abort!");
+        trx_table.release_trx_lock_obj(trx_id);
+        return -1;
+    }
+
+    Node acquired_leaf = find_leaf(table_id, header_node.root_page_number, key);
+    acquired_leaf.leaf_find(key, ret_val, val_size);
+
+    buf_unpin(table_id, acquired_leaf.pn);
+
+    return 0;
 }
 
 // 0: success: non-zero: failed
 int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size, int trx_id){
 
+    h_page_t header_node;
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_unpin(table_id, 0);
+
+    if(header_node.root_page_number==0){
+        return -1;
+    }
+
+    Node leaf = find_leaf(table_id, header_node.root_page_number, key);
+    int result = leaf.leaf_find_slot(key);
+
+    if(result == -1){
+        buf_unpin(table_id, leaf.pn);
+        return -1;
+    }
+    buf_unpin(table_id, leaf.pn);
+
+    lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE);        
+    if(lock_obj==nullptr){
+        printf("abort!");
+        trx_table.release_trx_lock_obj(trx_id);
+        return -1;
+    }
+
+    Node acquired_leaf = find_leaf(table_id, header_node.root_page_number, key);
+    leaf.leaf_update(key, value, new_val_size, old_val_size);
+
+    buf_unpin(table_id, acquired_leaf.pn);
+
+    return 0;
 }
 
 /*

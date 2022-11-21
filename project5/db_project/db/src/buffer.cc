@@ -100,12 +100,12 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         Buffer.remove_frame(target);
         Buffer.add_frame_front(target);
 
-        result = pthread_mutex_lock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
-        if(result != 0) return -1;
 
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
 
+        result = pthread_mutex_lock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
+        if(result != 0) return -1;
 
         return 0;      
     }
@@ -127,10 +127,10 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         Buffer.frame_in_use++;
         Buffer.page_buf_block_map.insert({tidpn_to_key({table_id, pagenum}),new_buf_block});
 
-        result = pthread_mutex_lock(&new_buf_block->page_latch);
+        result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
 
-        result = pthread_mutex_unlock(&buffer_latch);
+        result = pthread_mutex_lock(&new_buf_block->page_latch);
         if(result != 0) return -1;
 
         return 0;
@@ -296,16 +296,12 @@ pagenum_t buf_alloc_page(int64_t table_id){
         Buffer.frame_in_use++;
         Buffer.page_buf_block_map.insert({tidpn_to_key({table_id, allocated_pagenum}),new_buf_block});
 
-        //error
-        pthread_flag = pthread_mutex_lock(&new_buf_block->page_latch);
-        if(pthread_flag != 0) {
-            //printf("errornum: %d\n", pthread_flag);
-            return -1;
-        };
 
         pthread_flag = pthread_mutex_unlock(&buffer_latch);
         if(pthread_flag != 0) return -1;
 
+        pthread_flag = pthread_mutex_lock(&new_buf_block->page_latch);
+        if(pthread_flag != 0) return -1; 
     } 
     else {
         if(Buffer.frame_total < Buffer.frame_in_use){
@@ -413,6 +409,8 @@ void buf_free_page(int64_t table_id, pagenum_t pagenum){
     //printf("buf_free_page\n");
     int result;
     result = pthread_mutex_lock(&buffer_latch); 
+
+    // do not need to lock header page or freed page because project 5 do not modify table structure.
 
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, 0}))!=Buffer.page_buf_block_map.end()){
         f_page_t free_page_buf;

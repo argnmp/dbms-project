@@ -203,6 +203,32 @@ int Node::leaf_find(int64_t key, char* ret_val, uint16_t* val_size){
     return -1;
 
 }
+
+int Node::leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size){
+    //binary search
+    int low = 0; 
+    int high = leaf_ptr->number_of_keys -1;
+    int target;
+    while(low<=high){
+        target = (low+high)/2;
+        slot_t tmp;
+        memcpy(&tmp, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp)); 
+        if(tmp.get_key()==key){
+            *old_val_size = tmp.get_size();
+            memcpy(leaf_ptr->data + tmp.get_offset(), value, sizeof(uint8_t)* new_val_size);
+            return 0;
+        }
+        else if (tmp.get_key() > key){
+            high = target-1;
+        }
+        else {
+            low = target+1;
+        }
+    }
+    return -1;
+
+}
+
 void Node::leaf_print_all(){
     for(int i = 0; i<leaf_ptr->number_of_keys; i++){
         slot_t tmp;

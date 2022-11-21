@@ -340,7 +340,7 @@ int main()
 
 #endif
 
-#define buffer_test 123
+//#define buffer_test 123
 #ifdef buffer_test
 
 #include "dbpt.h"
@@ -359,35 +359,329 @@ int main()
 #include <pthread.h>
 
 int64_t table_id;
-void* buffer_thread(void* arg){
+void* find_thread(void* arg){
     int trx_id = trx_begin();
-    for(int i = 1; i<1000; i++){
-        printf("working %d\n",i);
+    for(int i = 1; i<100; i++){
+        printf("trx_id: %d, find %d\n",trx_id, i);
         char ret_val[150];
         uint16_t val_size;
-        db_find(table_id, i, ret_val, &val_size);
+        int result = db_find(table_id, i, ret_val, &val_size, trx_id);
+        if(result==-1) return NULL;
+
+        /*
+        printf("key %d : ",i);
+        for(int i = 0; i<val_size; i++){
+            printf("%c",ret_val[i]);
+        } 
+        printf("\n");
+        */
+
     }
+    trx_commit(trx_id);
+    return NULL;
+}
+void* update_thread(void* arg){
+    int trx_id = trx_begin();
+    for(int i = 1; i<100; i++){
+        printf("trx_id: %d, update %d\n",trx_id, i);
+        char ret_val[150];
+        uint16_t val_size;
+        int result = db_update(table_id, i, ret_val, val_size, &val_size, trx_id);
+        if(result==-1) return NULL;
+    }
+    trx_commit(trx_id);
 }
 int main(){
 
     string pathname = "dbrandtest.db"; 
 
     table_id = open_table(pathname.c_str()); 
-    init_db(100000);
+    init_db(1000);
 
-    for(int i = 0; i<100000; i++){
-        db_insert(table_id, i*1, pathname.c_str(), pathname.length()); 
+
+    vector<int> insert_keys;
+    vector<int> delete_keys;
+
+    ifstream insert_keys_s("../../test/insert_keys_100000.txt");
+    ifstream delete_keys_s("../../test/delete_keys_100000.txt");
+    int elem;
+    while(insert_keys_s >> elem){
+        insert_keys.push_back(elem);
+    }
+    while(delete_keys_s >> elem){
+        delete_keys.push_back(elem);
     }
 
-    pthread_t workers[10];
-    for(int i = 0; i<10; i++){
-        pthread_create(&workers[i], 0, buffer_thread, NULL);
+    for(auto i: insert_keys){
+        //string value = "thisisvalue" + to_string(i);
+        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + to_string(i);
+        int result = db_insert(table_id, i, value.c_str(), value.length());
     }
-	for (int i = 0; i < 10; i++) {
-		pthread_join(workers[i], NULL);
+
+    int finder_num = 10;
+    int updater_num = 1;
+
+    pthread_t finder[finder_num];
+    pthread_t updater[updater_num];
+
+    for(int i = 0; i<finder_num; i++){
+        pthread_create(&finder[i], 0, find_thread, NULL);
+    }
+    for(int i = 0; i<updater_num; i++){
+        pthread_create(&updater[i], 0, update_thread, NULL);
+    }
+	for (int i = 0; i < finder_num; i++) {
+		pthread_join(finder[i], NULL);
+	}
+	for (int i = 0; i < updater_num; i++) {
+		pthread_join(updater[i], NULL);
 	}
 
     shutdown_db();
 }
 
 #endif 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define transaction_test 100
+#ifdef transaction_test
+#include "trx.h"
+
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define TRANSFER_THREAD_NUMBER	(10)
+#define SCAN_THREAD_NUMBER		(2)
+
+#define TRANSFER_COUNT			(1000000)
+#define SCAN_COUNT				(10000)
+
+#define TABLE_NUMBER			(3)
+#define RECORD_NUMBER			(5)
+#define INITIAL_MONEY			(100000)
+#define MAX_MONEY_TRANSFERRED	(100)
+#define SUM_MONEY				(TABLE_NUMBER * RECORD_NUMBER * INITIAL_MONEY)
+
+/* This is shared data pretected by your lock table. */
+int accounts[TABLE_NUMBER][RECORD_NUMBER];
+
+/*
+ * This thread repeatedly transfers some money between accounts randomly.
+ */
+void*
+transfer_thread_func(void* arg)
+{
+    int trx_id = trx_begin();
+	lock_t*			source_lock;
+	lock_t*			destination_lock;
+	int				source_table_id;
+	int				source_record_id;
+	int				destination_table_id;
+	int				destination_record_id;
+	int				money_transferred;
+
+	for (int i = 0; i < TRANSFER_COUNT; i++) {
+        //printf("working %d\n",i);
+		/* Decide the source account and destination account for transferring. */
+		source_table_id = rand() % TABLE_NUMBER;
+		source_record_id = rand() % RECORD_NUMBER;
+		destination_table_id = rand() % TABLE_NUMBER;
+		destination_record_id = rand() % RECORD_NUMBER;
+
+		if ((source_table_id > destination_table_id) ||
+				(source_table_id == destination_table_id &&
+				 source_record_id >= destination_record_id)) {
+			/* Descending order may invoke deadlock conditions, so avoid it. */
+			continue;
+		}
+		
+		/* Decide the amount of money transferred. */
+		money_transferred = rand() % MAX_MONEY_TRANSFERRED;
+		money_transferred = rand() % 2 == 0 ?
+			(-1) * money_transferred : money_transferred;
+        
+        int result;
+        char ret_val[120];
+        uint16_t val_size;
+
+        result = db_update(source_table_id, source_record_id, ret_val, val_size, &val_size, trx_id);
+        if(result==-1) continue;
+
+		/* withdraw */
+		accounts[source_table_id][source_record_id] -= money_transferred;
+
+        result = db_update(destination_table_id, destination_record_id, ret_val, val_size, &val_size, trx_id);
+        if(result==-1) continue;
+
+		/* deposit */
+		accounts[destination_table_id][destination_record_id]
+			+= money_transferred;
+
+		/* Release lock!! */
+		//lock_release(destination_lock);
+		//lock_release(source_lock);
+	}
+    trx_commit(trx_id);
+
+
+	printf("Transfer thread is done.\n");
+
+	return NULL;
+}
+
+/*
+ * This thread repeatedly check the summation of all accounts.
+ * Because the locking strategy is 2PL (2 Phase Locking), the summation must
+ * always be consistent.
+ */
+void*
+scan_thread_func(void* arg)
+{
+    int trx_id = trx_begin();
+	int				sum_money;
+	lock_t*			lock_array[TABLE_NUMBER][RECORD_NUMBER];
+
+	for (int i = 0; i < SCAN_COUNT; i++) {
+        //printf("scanning %d\n",i);
+		sum_money = 0;
+
+		/* Iterate all accounts and summate the amount of money. */
+		for (int table_id = 0; table_id < TABLE_NUMBER; table_id++) {
+			for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
+                
+				/* Acquire lock!! */
+                /*
+				lock_array[table_id][record_id] =
+					lock_acquire(1, table_id, record_id, trx_id, SHARED);
+                if(lock_array[table_id][record_id] == nullptr) {
+                    printf("abort!\n");
+                    trx_commit(trx_id);
+                    return NULL;
+                }
+                */
+                int result=-1;
+                char ret_val[120];
+                uint16_t val_size;
+
+                while(result!=-1)
+                    result = db_find(table_id, record_id, ret_val, &val_size, trx_id);
+
+				/* Summation. */
+				sum_money += accounts[table_id][record_id];
+			}
+		}
+
+		for (int table_id = 0; table_id < TABLE_NUMBER; table_id++) {
+			for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
+				/* Release lock!! */
+				//lock_release(lock_array[table_id][record_id]);
+			}
+		}
+
+        
+		/* Check consistency. */
+        
+		if (sum_money != SUM_MONEY) {
+			printf("Inconsistent state is detected!!!!!\n");
+			printf("sum_money : %d\n", sum_money);
+			printf("SUM_MONEY : %d\n", SUM_MONEY);
+            trx_commit(trx_id);
+            return NULL;
+		}
+	}
+
+    trx_commit(trx_id);
+	printf("Scan thread is done.\n");
+
+	return NULL;
+}
+
+int main()
+{
+	pthread_t	transfer_threads[TRANSFER_THREAD_NUMBER];
+	pthread_t	scan_threads[SCAN_THREAD_NUMBER];
+
+	srand(time(NULL));
+
+	/* Initialize accounts. */
+	for (int table_id = 0; table_id < TABLE_NUMBER; table_id++) {
+		for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
+			accounts[table_id][record_id] = INITIAL_MONEY;
+		}
+	}
+
+	/* Initialize your lock table. */
+	init_lock_table();
+
+	/* thread create */
+	for (int i = 0; i < TRANSFER_THREAD_NUMBER; i++) {
+		pthread_create(&transfer_threads[i], 0, transfer_thread_func, NULL);
+	}
+	for (int i = 0; i < SCAN_THREAD_NUMBER; i++) {
+		pthread_create(&scan_threads[i], 0, scan_thread_func, NULL);
+	}
+
+	/* thread join */
+	for (int i = 0; i < TRANSFER_THREAD_NUMBER; i++) {
+		pthread_join(transfer_threads[i], NULL);
+	}
+	for (int i = 0; i < SCAN_THREAD_NUMBER; i++) {
+		pthread_join(scan_threads[i], NULL);
+	}
+
+    /*
+     * check connected transaction table objects 
+     * this test is valid when delete lock_obj is disabled in lock_release api
+     */
+    
+    /*
+    for (int i = 1; i < trx_table.g_trx_id; i++){
+        lock_t* cursor = trx_table.trx_map[i].head;
+        int counter = 0;
+        while(cursor != nullptr){
+            counter++;
+            cursor = cursor -> next_lock;
+        }
+        printf("trx id: %d, counter %d\n",i, counter);
+    }
+    */
+    
+
+	return 0;
+}
+#endif

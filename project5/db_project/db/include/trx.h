@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include "file.h"
 #include "buffer.h"
+#include "dbpt.h"
 
 typedef struct lock_t lock_t;
 
