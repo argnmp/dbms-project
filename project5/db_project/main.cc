@@ -342,7 +342,7 @@ int main()
 
 #endif
 
-#define buffer_test 123
+//#define buffer_test 123
 #ifdef buffer_test
 
 #include "dbpt.h"
@@ -705,7 +705,7 @@ int main()
 }
 #endif
 
-//#define single_thread_test 100
+#define single_thread_test 100
 #ifdef single_thread_test
 #include "trx.h"
 #include "db.h"
@@ -723,7 +723,7 @@ int main(){
     init_lock_table();
     int result;
     
-    for(int i = 1; i<=10000; i++){
+    for(int i = 1; i<=1000; i++){
         string value = to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
@@ -734,6 +734,14 @@ int main(){
     string new_val;
     uint16_t old_val_size;
 
+    new_val = to_string(1234);
+    old_val_size = 0;
+    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    printf("old_val_size: %d\n",old_val_size);
 
     result = db_find(table_id, 40, ret_val, &val_size, trx_id);
     if(result==-1){
@@ -743,69 +751,30 @@ int main(){
     for(int i = 0; i<val_size; i++){
         printf("%c", ret_val[i]);
     }
-    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
-    }
-    for(int i = 0; i<val_size; i++){
-        printf("%c", ret_val[i]);
-    }
-    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
-    }
-    for(int i = 0; i<val_size; i++){
-        printf("%c", ret_val[i]);
-    }
-    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
-    }
-    for(int i = 0; i<val_size; i++){
-        printf("%c", ret_val[i]);
-    }
-    
-    new_val = to_string(50);
-    old_val_size = 0;
-    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
-    }
 
-    new_val = to_string(60);
-    old_val_size = 0;
-    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
-    }
-    new_val = to_string(70);
-    old_val_size = 0;
-    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
-    }
-    new_val = to_string(80);
-    old_val_size = 0;
-    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
+    /*
+    for(int i = 0; i<100; i++){
+        result = db_find(table_id, 40, ret_val, &val_size, trx_id);
+        if(result==-1){
+            printf("abort!\n");
+            sleep(100);
+        }
+        for(int i = 0; i<val_size; i++){
+            printf("%c", ret_val[i]);
+        }
     }
     
-    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
+    for(int i = 0; i<120; i++){
+        new_val = to_string(50);
+        old_val_size = 0;
+        result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
+        if(result==-1){
+            printf("abort!\n");
+            sleep(100);
+        }
     }
-    for(int i = 0; i<val_size; i++){
-        printf("%c", ret_val[i]);
-    }
+    */
+
     trx_commit(trx_id);
 
     shutdown_db();

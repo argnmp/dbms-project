@@ -668,7 +668,7 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, in
     lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, SHARED, nullptr, 0);        
     if(lock_obj==nullptr){
         //printf("abort!");
-        trx_table.release_trx_lock_obj(trx_id);
+        trx_table.abort_trx_lock_obj(trx_id);
         return -1;
     }
 
@@ -705,7 +705,7 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, ret_val, val_size);        
     if(lock_obj==nullptr){
         //printf("abort! %d\n",trx_id);
-        trx_table.release_trx_lock_obj(trx_id);
+        trx_table.abort_trx_lock_obj(trx_id);
         return -1;
     }
 
