@@ -33,6 +33,8 @@ public:
 
     // trx_id: success, 0: fail
     int release_trx_lock_obj(int trx_id);
+    // trx_id: success, 0: fail
+    int abort_trx_lock_obj(int trx_id);
 };
 extern TRX_Table trx_table;
 
@@ -89,6 +91,8 @@ struct lock_t {
     int64_t record_id;
     lock_t* next_lock;
     int trx_id;
+    char* value;
+    uint16_t old_val_size;
 };
 
 
@@ -98,7 +102,7 @@ extern unordered_map<pair<int64_t,pagenum_t>, hash_table_entry, pair_for_hash> h
 
 /* APIs for lock table */
 int init_lock_table();
-lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode);
+lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, char* value, uint16_t old_val_size);
 int lock_release(lock_t* lock_obj);
 
 /*

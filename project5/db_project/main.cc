@@ -127,7 +127,7 @@ int main(){
 }
 #endif
 
-#define lock_table_test 100
+//#define lock_table_test 100
 #ifdef lock_table_test
 #include "trx.h"
 
@@ -340,7 +340,7 @@ int main()
 
 #endif
 
-//#define buffer_test 123
+#define buffer_test 123
 #ifdef buffer_test
 
 #include "dbpt.h"
@@ -435,7 +435,7 @@ int main(){
     }
 
     int finder_num = 0;
-    int updater_num = 20;
+    int updater_num = 10;
 
     pthread_t finder[finder_num];
     pthread_t updater[updater_num];
