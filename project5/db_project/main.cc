@@ -188,7 +188,9 @@ transfer_thread_func(void* arg)
 			(-1) * money_transferred : money_transferred;
 		
 		/* Acquire lock!! */
-		source_lock = lock_acquire(1, source_table_id, source_record_id, trx_id, EXCLUSIVE);
+        char value[130];
+        uint16_t val_size = 0;
+		source_lock = lock_acquire(1, source_table_id, source_record_id, trx_id, EXCLUSIVE, value, val_size);
         if(source_lock == nullptr) {
             printf("abort!\n");
             trx_commit(trx_id);
@@ -200,7 +202,7 @@ transfer_thread_func(void* arg)
 
 		/* Acquire lock!! */
 		destination_lock =
-			lock_acquire(1, destination_table_id, destination_record_id, trx_id, EXCLUSIVE);
+			lock_acquire(1, destination_table_id, destination_record_id, trx_id, EXCLUSIVE, value, val_size);
         if(destination_lock == nullptr) {
             printf("abort!\n");
             trx_commit(trx_id);
@@ -244,7 +246,7 @@ scan_thread_func(void* arg)
 			for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
 				/* Acquire lock!! */
 				lock_array[table_id][record_id] =
-					lock_acquire(1, table_id, record_id, trx_id, SHARED);
+					lock_acquire(1, table_id, record_id, trx_id, SHARED, nullptr, 0);
                 if(lock_array[table_id][record_id] == nullptr) {
                     printf("abort!\n");
                     trx_commit(trx_id);
@@ -363,7 +365,7 @@ void* find_thread(void* arg){
     int trx_id = trx_begin();
     for(int k = 1; k<100; k++){
         int i = rand() % 100;
-        printf("trx_id: %d, find %d\n",trx_id, i);
+        //printf("trx_id: %d, find %d\n",trx_id, i);
         char ret_val[150];
         uint16_t val_size;
         int result = db_find(table_id, i, ret_val, &val_size, trx_id);
@@ -383,7 +385,7 @@ void* find_thread(void* arg){
 }
 void* update_thread(void* arg){
     int trx_id = trx_begin();
-    for(int k = 1; k<100; k++){
+    for(int k = 1; k<10000; k++){
         int i = rand() % 100;
         /*
         printf("trx_id: %d, update %d\n",trx_id, i);
@@ -407,6 +409,7 @@ int main(){
 
     table_id = open_table(pathname.c_str()); 
     init_db(1000);
+    init_lock_table();
 
 
     /*
@@ -699,5 +702,112 @@ int main()
     
 
 	return 0;
+}
+#endif
+
+//#define single_thread_test 100
+#ifdef single_thread_test
+#include "trx.h"
+#include "db.h"
+
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <time.h>
+int main(){
+    string pathname = "dbrandtest.db"; 
+
+    int64_t table_id = open_table(pathname.c_str()); 
+    init_db(1000);
+    init_lock_table();
+    int result;
+    
+    for(int i = 1; i<=10000; i++){
+        string value = to_string(i);
+        db_insert(table_id, i, value.c_str(), value.length());
+    }
+
+    int trx_id = trx_begin();
+    char ret_val[130];
+    uint16_t val_size;
+    string new_val;
+    uint16_t old_val_size;
+
+
+    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    for(int i = 0; i<val_size; i++){
+        printf("%c", ret_val[i]);
+    }
+    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    for(int i = 0; i<val_size; i++){
+        printf("%c", ret_val[i]);
+    }
+    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    for(int i = 0; i<val_size; i++){
+        printf("%c", ret_val[i]);
+    }
+    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    for(int i = 0; i<val_size; i++){
+        printf("%c", ret_val[i]);
+    }
+    
+    new_val = to_string(50);
+    old_val_size = 0;
+    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+
+    new_val = to_string(60);
+    old_val_size = 0;
+    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    new_val = to_string(70);
+    old_val_size = 0;
+    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    new_val = to_string(80);
+    old_val_size = 0;
+    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    
+    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
+    if(result==-1){
+        printf("abort!\n");
+        sleep(100);
+    }
+    for(int i = 0; i<val_size; i++){
+        printf("%c", ret_val[i]);
+    }
+    trx_commit(trx_id);
+
+    shutdown_db();
 }
 #endif

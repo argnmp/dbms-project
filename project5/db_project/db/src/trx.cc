@@ -186,7 +186,7 @@ int init_lock_table() {
 }
 
 bool lock_acquire_deadlock_detection(lock_t* dependency, int trx_id){
-    printf("lock_acquire_deadlock_detection\n");
+    //printf("lock_acquire_deadlock_detection %d\n", trx_id);
     int debug_int = 0;
     //printf("deadlock detection dependency trx_id: %d, dependency record_id %d, compared trx_id: %d\n",dependency->trx_id, dependency->record_id, trx_id);
     while(dependency->next_lock != nullptr){
@@ -274,7 +274,7 @@ bool lock_acquire_deadlock_detection(lock_t* dependency, int trx_id){
     return false;
 }
 lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, char* value, uint16_t old_val_size) {
-    printf("lock_acquire\n");
+    //printf("lock_acquire\n");
     int result = 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
@@ -344,7 +344,51 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             cursor = cursor -> prev;
         }
         // now cursor points to the lock that occurs dependency. if it is nullptr there is no dependency.
-        if(cursor!=nullptr){
+        // 1. same trx_id case
+        if(cursor!=nullptr && cursor->trx_id == trx_id){
+            if(lck->lock_mode == EXCLUSIVE){
+                if(cursor->trx_id == SHARED){
+                    cursor = cursor -> prev;
+                    while(cursor!=nullptr){
+                        if(cursor->record_id != key){
+                            cursor = cursor -> prev;
+                            continue;
+                        }
+                        if(cursor->lock_mode == EXCLUSIVE) break;
+
+                        if(cursor->trx_id != trx_id){
+                            //printf("possible deadlock!\n");
+                            lck->prev->next = nullptr;
+                            target->tail = lck->prev;
+
+                            delete lck; 
+
+                            result = pthread_mutex_unlock(&lock_table_latch); 
+                            if(result!=0) return nullptr;
+
+                            return nullptr;
+                        } 
+                        cursor = cursor->prev;             
+                    }
+
+                    trx_table.connect_lock_obj(trx_id, lck);
+                } 
+                else if(cursor->trx_id == EXCLUSIVE){
+                    trx_table.connect_lock_obj(trx_id, lck);
+                }
+            } 
+            else if(lck->lock_mode == SHARED){
+                if(cursor->trx_id == SHARED){
+                    //this case is resolved by 2
+                }
+                else if(cursor->trx_id == EXCLUSIVE){
+                    trx_table.connect_lock_obj(trx_id, lck);
+                }
+            }
+        }
+
+        // 2. different trx_id case
+        else if(cursor!=nullptr){
             if(lck->lock_mode == EXCLUSIVE){
                 if(cursor->lock_mode==EXCLUSIVE){
                     //printf("current: exclusive, traget: exclusive\n");
@@ -444,7 +488,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
 
 // wrapper function release_trx_lock_obj acquires lock table latch
 int lock_release(lock_t* lock_obj) {
-    printf("lock_release\n");
+    //printf("lock_release\n");
 
     int result = 0;
 
@@ -623,7 +667,7 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, in
 
     lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, SHARED, nullptr, 0);        
     if(lock_obj==nullptr){
-        printf("abort!");
+        //printf("abort!");
         trx_table.release_trx_lock_obj(trx_id);
         return -1;
     }
@@ -660,7 +704,7 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
 
     lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, ret_val, val_size);        
     if(lock_obj==nullptr){
-        printf("abort! %d\n",trx_id);
+        //printf("abort! %d\n",trx_id);
         trx_table.release_trx_lock_obj(trx_id);
         return -1;
     }
