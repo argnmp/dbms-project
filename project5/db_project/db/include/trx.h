@@ -18,11 +18,12 @@ struct trx_map_entry_t {
     lock_t* head;
     lock_t* tail;
 };
+
+extern pthread_mutex_t trx_table_latch;    
 class TRX_Table {
 public:
     unordered_map<int, trx_map_entry_t> trx_map;    
     int g_trx_id = 1;
-    pthread_mutex_t trx_table_latch;    
     
     // trx_id: success, 0: fail
     int create_entry();

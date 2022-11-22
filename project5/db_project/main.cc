@@ -127,7 +127,7 @@ int main(){
 }
 #endif
 
-//#define lock_table_test 100
+#define lock_table_test 100
 #ifdef lock_table_test
 #include "trx.h"
 
@@ -137,8 +137,8 @@ int main(){
 #include <stdlib.h>
 #include <time.h>
 
-#define TRANSFER_THREAD_NUMBER	(10)
-#define SCAN_THREAD_NUMBER		(2)
+#define TRANSFER_THREAD_NUMBER	(100)
+#define SCAN_THREAD_NUMBER		(0)
 
 #define TRANSFER_COUNT			(1000000)
 #define SCAN_COUNT				(10000)
@@ -361,7 +361,8 @@ int main()
 int64_t table_id;
 void* find_thread(void* arg){
     int trx_id = trx_begin();
-    for(int i = 1; i<100; i++){
+    for(int k = 1; k<100; k++){
+        int i = rand() % 100;
         printf("trx_id: %d, find %d\n",trx_id, i);
         char ret_val[150];
         uint16_t val_size;
@@ -382,12 +383,21 @@ void* find_thread(void* arg){
 }
 void* update_thread(void* arg){
     int trx_id = trx_begin();
-    for(int i = 1; i<100; i++){
+    for(int k = 1; k<100; k++){
+        int i = rand() % 100;
+        /*
         printf("trx_id: %d, update %d\n",trx_id, i);
         char ret_val[150];
         uint16_t val_size;
         int result = db_update(table_id, i, ret_val, val_size, &val_size, trx_id);
         if(result==-1) return NULL;
+        */
+        printf("trx_id: %d, update %d\n",trx_id, i);
+        string value = "helloworld";
+        uint16_t old_val_size;
+        int result = db_update(table_id, i, (char*) value.c_str(), value.length(), &old_val_size, trx_id);
+        if(result==-1) return NULL;
+        
     }
     trx_commit(trx_id);
 }
@@ -399,6 +409,7 @@ int main(){
     init_db(1000);
 
 
+    /*
     vector<int> insert_keys;
     vector<int> delete_keys;
 
@@ -417,9 +428,14 @@ int main(){
         string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + to_string(i);
         int result = db_insert(table_id, i, value.c_str(), value.length());
     }
+    */
+    for(int i = 1; i<=10000; i++){
+        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + to_string(i);
+        db_insert(table_id, i, value.c_str(), value.length());
+    }
 
-    int finder_num = 10;
-    int updater_num = 1;
+    int finder_num = 0;
+    int updater_num = 20;
 
     pthread_t finder[finder_num];
     pthread_t updater[updater_num];
@@ -475,7 +491,7 @@ int main(){
 
 
 
-#define transaction_test 100
+//#define transaction_test 100
 #ifdef transaction_test
 #include "trx.h"
 
