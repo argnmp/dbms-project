@@ -651,19 +651,21 @@ int lock_release(lock_t* lock_obj) {
 int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, int trx_id){
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
-    buf_unpin(table_id, 0);
 
     if(header_node.root_page_number==0){
+        buf_unpin(table_id, 0);
         return -1;
     }
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
     int result = leaf.leaf_find_slot(key);
 
     if(result == -1){
+        buf_unpin(table_id, 0);
         buf_unpin(table_id, leaf.pn);
         return -1;
     }
     buf_unpin(table_id, leaf.pn);
+    buf_unpin(table_id, 0);
 
     lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, SHARED, nullptr, 0);        
     if(lock_obj==nullptr){
@@ -696,6 +698,7 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     int result = leaf.leaf_find(key, ret_val, &val_size);
 
     if(result == -1){
+        buf_unpin(table_id, 0);
         buf_unpin(table_id, leaf.pn);
         return -1;
     }
