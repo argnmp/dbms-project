@@ -693,9 +693,8 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     }
 
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
-    char ret_val[130];
-    uint16_t val_size;
-    int result = leaf.leaf_find(key, ret_val, &val_size);
+    char* ret_val  = new char[130];
+    int result = leaf.leaf_find(key, ret_val, old_val_size);
 
     if(result == -1){
         buf_unpin(table_id, 0);
@@ -705,7 +704,7 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     buf_unpin(table_id, leaf.pn);
     buf_unpin(table_id, 0);
 
-    lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, ret_val, val_size);        
+    lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, ret_val, *old_val_size);        
     if(lock_obj==nullptr){
         //printf("abort! %d\n",trx_id);
         trx_table.abort_trx_lock_obj(trx_id);

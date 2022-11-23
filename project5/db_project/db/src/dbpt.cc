@@ -215,6 +215,8 @@ int Node::leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t*
         memcpy(&tmp, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp)); 
         if(tmp.get_key()==key){
             *old_val_size = tmp.get_size();
+            tmp.set_size(new_val_size);
+            memcpy(leaf_ptr->data + target*SLOT_SIZE, &tmp, sizeof(tmp)); 
             memcpy(leaf_ptr->data + tmp.get_offset(), value, sizeof(uint8_t)* new_val_size);
             return 0;
         }

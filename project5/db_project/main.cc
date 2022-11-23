@@ -723,7 +723,7 @@ int main(){
     init_lock_table();
     int result;
     
-    for(int i = 1; i<=1000; i++){
+    for(int i = 1000; i<=2000; i++){
         string value = to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
@@ -734,23 +734,30 @@ int main(){
     string new_val;
     uint16_t old_val_size;
 
-    new_val = to_string(1234);
-    old_val_size = 0;
-    result = db_update(table_id, 40, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
-    }
-    printf("old_val_size: %d\n",old_val_size);
+    for(int i = 0; i<1000; i++){
+        new_val = to_string(i);
+        old_val_size = 0;
+        result = db_update(table_id, 1234, (char*)new_val.c_str(), (uint16_t)new_val.length(), &old_val_size, trx_id);
+        if(result==-1){
+            printf("abort!\n");
+            sleep(100);
+        }
+        printf("old_val_size: %d\n",old_val_size);
 
-    result = db_find(table_id, 40, ret_val, &val_size, trx_id);
-    if(result==-1){
-        printf("abort!\n");
-        sleep(100);
+        result = db_find(table_id, 1234, ret_val, &val_size, trx_id);
+        if(result==-1){
+            printf("abort!\n");
+            sleep(100);
+        }
+        printf("target: ");
+        for(int i = 0; i<val_size; i++){
+            printf("%c", ret_val[i]);
+        }
+        printf("\n");
+
     }
-    for(int i = 0; i<val_size; i++){
-        printf("%c", ret_val[i]);
-    }
+    //trx_table.abort_trx_lock_obj(trx_id);
+
 
     /*
     for(int i = 0; i<100; i++){
