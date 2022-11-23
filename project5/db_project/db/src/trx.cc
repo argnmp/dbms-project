@@ -346,6 +346,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         // now cursor points to the lock that occurs dependency. if it is nullptr there is no dependency.
         // 1. same trx_id case
         if(cursor!=nullptr && cursor->trx_id == trx_id){
+            /*
             if(lck->lock_mode == EXCLUSIVE){
                 if(cursor->trx_id == SHARED){
                     cursor = cursor -> prev;
@@ -385,6 +386,8 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                     trx_table.connect_lock_obj(trx_id, lck);
                 }
             }
+            */
+            trx_table.connect_lock_obj(trx_id, lck);
         }
 
         // 2. different trx_id case
@@ -651,21 +654,19 @@ int lock_release(lock_t* lock_obj) {
 int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, int trx_id){
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_unpin(table_id, 0);
 
     if(header_node.root_page_number==0){
-        buf_unpin(table_id, 0);
         return -1;
     }
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
     int result = leaf.leaf_find_slot(key);
 
     if(result == -1){
-        buf_unpin(table_id, 0);
         buf_unpin(table_id, leaf.pn);
         return -1;
     }
     buf_unpin(table_id, leaf.pn);
-    buf_unpin(table_id, 0);
 
     lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, SHARED, nullptr, 0);        
     if(lock_obj==nullptr){
@@ -674,9 +675,11 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, in
         return -1;
     }
 
+    buf_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_unpin(table_id, 0);
+
     Node acquired_leaf = find_leaf(table_id, header_node.root_page_number, key);
     acquired_leaf.leaf_find(key, ret_val, val_size);
-
     buf_unpin(table_id, acquired_leaf.pn);
 
     return 0;
@@ -687,6 +690,7 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
 
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_unpin(table_id, 0);
 
     if(header_node.root_page_number==0){
         return -1;
@@ -697,12 +701,10 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     int result = leaf.leaf_find(key, ret_val, old_val_size);
 
     if(result == -1){
-        buf_unpin(table_id, 0);
         buf_unpin(table_id, leaf.pn);
         return -1;
     }
     buf_unpin(table_id, leaf.pn);
-    buf_unpin(table_id, 0);
 
     lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, ret_val, *old_val_size);        
     if(lock_obj==nullptr){
@@ -712,13 +714,13 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     }
 
     buf_read_page(table_id, 0, (page_t*) &header_node);      
+    buf_unpin(table_id, 0);
 
     Node acquired_leaf = find_leaf(table_id, header_node.root_page_number, key);
     acquired_leaf.leaf_update(key, value, new_val_size, old_val_size);
     acquired_leaf.write_to_disk(); 
 
     buf_unpin(table_id, acquired_leaf.pn);
-    buf_unpin(table_id, 0);
 
     return 0;
 }
