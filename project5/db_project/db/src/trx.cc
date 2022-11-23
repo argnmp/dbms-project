@@ -4,7 +4,7 @@
  * TRX_TABLE_MODULE_BEGIN
  */
 
-pthread_mutex_t trx_table_latch = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t trx_table_latch;
 
 int TRX_Table::create_entry(){
     int result;
@@ -172,7 +172,7 @@ int debug_count = 0;
 pthread_mutex_t lock_table_latch;
 unordered_map<pair<int64_t,pagenum_t>, hash_table_entry, pair_for_hash> hash_table;
 
-int init_lock_table() {
+int init_trx() {
     int result = 0;
 
     pthread_mutexattr_t mtx_attribute;
@@ -181,6 +181,9 @@ int init_lock_table() {
     result = pthread_mutexattr_settype(&mtx_attribute, PTHREAD_MUTEX_NORMAL);
     if(result!=0) return -1;
     result = pthread_mutex_init(&lock_table_latch, &mtx_attribute);
+    if(result!=0) return -1;
+
+    result = pthread_mutex_init(&trx_table_latch, &mtx_attribute);
     if(result!=0) return -1;
     return 0;
 }
