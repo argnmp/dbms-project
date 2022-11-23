@@ -163,15 +163,6 @@ int trx_commit(int trx_id){
  * TRX_TABLE_MODULE_END
  */
 
-/*
- * LOCK_TABLE_MODULE_BEGIN
- */
-
-int debug_count = 0;
-
-pthread_mutex_t lock_table_latch;
-unordered_map<pair<int64_t,pagenum_t>, hash_table_entry, pair_for_hash> hash_table;
-
 int init_trx() {
     int result = 0;
 
@@ -187,6 +178,15 @@ int init_trx() {
     if(result!=0) return -1;
     return 0;
 }
+/*
+ * LOCK_TABLE_MODULE_BEGIN
+ */
+
+int debug_count = 0;
+
+pthread_mutex_t lock_table_latch;
+unordered_map<pair<int64_t,pagenum_t>, hash_table_entry, pair_for_hash> hash_table;
+
 
 bool lock_acquire_deadlock_detection(lock_t* dependency, int trx_id){
     //printf("lock_acquire_deadlock_detection %d\n", trx_id);
@@ -660,14 +660,14 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, in
     buf_unpin(table_id, 0);
 
     if(header_node.root_page_number==0){
-        return -1;
+        return 1;
     }
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
     int result = leaf.leaf_find_slot(key);
 
     if(result == -1){
         buf_unpin(table_id, leaf.pn);
-        return -1;
+        return 1;
     }
     buf_unpin(table_id, leaf.pn);
 
@@ -696,7 +696,7 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     buf_unpin(table_id, 0);
 
     if(header_node.root_page_number==0){
-        return -1;
+        return 1;
     }
 
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
@@ -705,7 +705,7 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
 
     if(result == -1){
         buf_unpin(table_id, leaf.pn);
-        return -1;
+        return 1;
     }
     buf_unpin(table_id, leaf.pn);
 
