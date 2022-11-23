@@ -1,4 +1,5 @@
 #include "db.h"
+#include "trx.h"
 
 std::vector<char*> allocated_memory_ptr;
 
@@ -37,7 +38,9 @@ int db_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<in
 }
 
 int init_db(int num_buf){
-    return init_buffer(num_buf);
+    int result = init_buffer(num_buf);
+    result = init_lock_table();
+    return 0;
 }
 
 int shutdown_db(){

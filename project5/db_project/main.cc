@@ -721,14 +721,24 @@ int result;
 
 void test(){
     int trx_id = trx_begin();
+    //printf("trx_id: %d\n",trx_id);
     char ret_val[130];
     uint16_t val_size;
-    string new_val;
+    string new_val = to_string(trx_id);
     uint16_t old_val_size;
     
+    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id ); 
+    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id ); 
+    result = db_find(table_id, 1000, ret_val, &val_size, trx_id); 
+    /*
+    for(int i = 0; i<val_size; i++){
+        printf("%c",ret_val[i]);
+    }
+    printf("\n");
+    */
 
-    trx_commit(trx_id);
-
+    result = trx_commit(trx_id);
+    //printf("result: %d\n",result);
 
 }
 int main(){
@@ -736,13 +746,14 @@ int main(){
 
     table_id = open_table(pathname.c_str()); 
     init_db(1000);
-    init_lock_table();
     
     for(int i = 1; i<=1000; i++){
         string value = to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
-    test();
+    for(int i = 0; i<1000; i++){
+        test();
+    }
 
     shutdown_db();
 }
