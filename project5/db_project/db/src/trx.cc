@@ -48,6 +48,9 @@ int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
         trx_map[trx_id].head = lock_obj;
         trx_map[trx_id].tail = lock_obj;
     }
+    else if(trx_map[trx_id].tail == lock_obj){
+        //do nothing
+    }
     else {
         trx_map[trx_id].tail->next_lock = lock_obj;
         trx_map[trx_id].tail = lock_obj;
@@ -276,6 +279,27 @@ bool lock_acquire_deadlock_detection(lock_t* dependency, int trx_id){
     //else case/ because of warning changed this way
     return false;
 }
+void lock_detach(hash_table_entry* target, lock_t* lock_obj){
+    if(lock_obj->prev == nullptr){
+        //case lock_obj is leftmost
+        target->head = lock_obj->next;
+        lock_obj->next->prev = nullptr;
+        lock_obj->next = nullptr;
+    }
+    else if(lock_obj->next == nullptr){
+        //case lock_obj is rightmost
+        target->tail = lock_obj->prev;
+        lock_obj->prev->next = nullptr;
+        lock_obj->prev = nullptr;
+    }
+    else {
+        lock_obj->prev->next = lock_obj->next;
+        lock_obj->next->prev = lock_obj->prev;
+        lock_obj->next = nullptr;
+        lock_obj->prev = nullptr;
+    }
+
+}
 lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, char* value, uint16_t old_val_size) {
     //printf("lock_acquire\n");
     int result = 0;
@@ -283,6 +307,8 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return nullptr;
     //printf("lock_acquire trx: %d, table_id: %d, page_id: %d, record_id: %d\n", trx_id, table_id, page_id, key);
+    
+    
 
     if(hash_table.find({table_id, page_id})==hash_table.end()){
         hash_table_entry hte;
@@ -321,6 +347,66 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         target->tail = lck; 
     }
 
+    //first check if trx already acquired lock. one or zero same trx lock_obj
+    lock_t* same_trx_lock_obj = lck->prev;
+    while(same_trx_lock_obj != nullptr){
+        //printf("debug_count lock_acquire %d\n", debug_count++);
+        if(same_trx_lock_obj->record_id != key){
+            same_trx_lock_obj = same_trx_lock_obj -> prev;
+            continue;
+        }
+        if(same_trx_lock_obj->trx_id == lck->trx_id){
+            break; 
+        }
+        same_trx_lock_obj = same_trx_lock_obj -> prev;
+    }
+    if(same_trx_lock_obj != nullptr){
+        if(same_trx_lock_obj->lock_mode == lck->lock_mode){
+            lck->prev->next = nullptr; target->tail = lck->prev; delete lck; 
+
+            delete value;
+
+            result = pthread_mutex_unlock(&lock_table_latch); 
+            if(result!=0) return nullptr;
+
+            return same_trx_lock_obj;
+        }
+        else {
+            if(lck->lock_mode == EXCLUSIVE){
+                lock_detach(target, same_trx_lock_obj); 
+                same_trx_lock_obj->lock_mode = EXCLUSIVE;
+                same_trx_lock_obj->old_val_size = lck->old_val_size;
+                same_trx_lock_obj->value = lck->value;
+
+                if(lck->prev==nullptr){
+                    target->head = same_trx_lock_obj;
+                    target->tail = same_trx_lock_obj;
+                    
+                    delete lck;
+                }
+                else {
+                    lck->prev->next = nullptr; target->tail = lck->prev; delete lck;
+
+                    target->tail->next = same_trx_lock_obj;
+                    same_trx_lock_obj->prev = target->tail;
+                    target->tail = same_trx_lock_obj; 
+                }
+                
+                lck = same_trx_lock_obj;
+
+                //do not return for further processing
+            }
+            else {
+                lck->prev->next = nullptr; target->tail = lck->prev; delete lck; 
+
+                result = pthread_mutex_unlock(&lock_table_latch); 
+                if(result!=0) return nullptr;
+
+                return same_trx_lock_obj;
+            }
+        }
+    }
+
     if(!is_immediate){
         lock_t* cursor = lck->prev;
         bool is_prev_xlock_exist = false;
@@ -346,55 +432,8 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             }
             cursor = cursor -> prev;
         }
-        // now cursor points to the lock that occurs dependency. if it is nullptr there is no dependency.
-        // 1. same trx_id case
-        if(cursor!=nullptr && cursor->trx_id == trx_id){
-            /*
-            if(lck->lock_mode == EXCLUSIVE){
-                if(cursor->trx_id == SHARED){
-                    cursor = cursor -> prev;
-                    while(cursor!=nullptr){
-                        if(cursor->record_id != key){
-                            cursor = cursor -> prev;
-                            continue;
-                        }
-                        if(cursor->lock_mode == EXCLUSIVE) break;
 
-                        if(cursor->trx_id != trx_id){
-                            //printf("possible deadlock!\n");
-                            lck->prev->next = nullptr;
-                            target->tail = lck->prev;
-
-                            delete lck; 
-
-                            result = pthread_mutex_unlock(&lock_table_latch); 
-                            if(result!=0) return nullptr;
-
-                            return nullptr;
-                        } 
-                        cursor = cursor->prev;             
-                    }
-
-                    trx_table.connect_lock_obj(trx_id, lck);
-                } 
-                else if(cursor->trx_id == EXCLUSIVE){
-                    trx_table.connect_lock_obj(trx_id, lck);
-                }
-            } 
-            else if(lck->lock_mode == SHARED){
-                if(cursor->trx_id == SHARED){
-                    //this case is resolved by 2
-                }
-                else if(cursor->trx_id == EXCLUSIVE){
-                    trx_table.connect_lock_obj(trx_id, lck);
-                }
-            }
-            */
-            trx_table.connect_lock_obj(trx_id, lck);
-        }
-
-        // 2. different trx_id case
-        else if(cursor!=nullptr){
+        if(cursor!=nullptr){
             if(lck->lock_mode == EXCLUSIVE){
                 if(cursor->lock_mode==EXCLUSIVE){
                     //printf("current: exclusive, traget: exclusive\n");
@@ -483,6 +522,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         //trx_table connection
         trx_table.connect_lock_obj(trx_id, lck);
     }
+
 
 
     result = pthread_mutex_unlock(&lock_table_latch); 
