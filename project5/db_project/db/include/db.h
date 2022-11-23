@@ -16,7 +16,7 @@ int64_t open_table(const char* pathname);
 int db_insert(int64_t table_id, int64_t key, const char* value, uint16_t val_size);
 
 // Find a record with the matching key from the given table. 
-int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size);
+int db_find_depreciated(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size);
 
 // Delete a record with the matching key from the given table. / 0 for success, -1 for fail
 int db_delete(int64_t table_id, int64_t key);
