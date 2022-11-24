@@ -381,6 +381,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                 if(lck->prev==nullptr){
                     target->head = same_trx_lock_obj;
                     target->tail = same_trx_lock_obj;
+                    is_immediate = true;
                     
                     delete lck;
                 }
