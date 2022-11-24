@@ -409,7 +409,6 @@ int main(){
 
     table_id = open_table(pathname.c_str()); 
     init_db(1000);
-    init_lock_table();
 
 
     /*
@@ -494,9 +493,10 @@ int main(){
 
 
 
-//#define transaction_test 100
+#define transaction_test 100
 #ifdef transaction_test
 #include "trx.h"
+#include "db.h"
 
 #include <stdio.h>
 #include <pthread.h>
@@ -535,7 +535,7 @@ transfer_thread_func(void* arg)
 	int				money_transferred;
 
 	for (int i = 0; i < TRANSFER_COUNT; i++) {
-        //printf("working %d\n",i);
+        printf("working %d\n",i);
 		/* Decide the source account and destination account for transferring. */
 		source_table_id = rand() % TABLE_NUMBER;
 		source_record_id = rand() % RECORD_NUMBER;
@@ -557,23 +557,36 @@ transfer_thread_func(void* arg)
         int result;
         char ret_val[120];
         uint16_t val_size;
-
-        result = db_update(source_table_id, source_record_id, ret_val, val_size, &val_size, trx_id);
-        if(result==-1) continue;
+        uint16_t old_val_size;
+        string num_str;
+        int num_int;
 
 		/* withdraw */
-		accounts[source_table_id][source_record_id] -= money_transferred;
+        result = db_find(source_table_id, source_record_id, ret_val, &val_size, trx_id);
+        if(result==-1) return NULL;
+        
+        num_str = "";
+        for(int i = 0; i<val_size; i++) num_str += ret_val[i];
+        num_int = stoi(num_str);
+        num_int -= money_transferred;
+        num_str = to_string(num_int);  
 
-        result = db_update(destination_table_id, destination_record_id, ret_val, val_size, &val_size, trx_id);
-        if(result==-1) continue;
+        result = db_update(source_table_id, source_record_id, (char*) num_str.c_str(), num_str.length(),&old_val_size, trx_id);
+        if(result==-1) return NULL;
 
 		/* deposit */
-		accounts[destination_table_id][destination_record_id]
-			+= money_transferred;
+        result = db_find(destination_table_id, destination_record_id, ret_val, &val_size, trx_id);
+        if(result==-1) return NULL;
+        
+        num_str = "";
+        for(int i = 0; i<val_size; i++) num_str += ret_val[i];
+        num_int = stoi(num_str);
+        num_int += money_transferred;
+        num_str = to_string(num_int);  
 
-		/* Release lock!! */
-		//lock_release(destination_lock);
-		//lock_release(source_lock);
+        result = db_update(destination_table_id, destination_record_id, (char*) num_str.c_str(), num_str.length(),&old_val_size, trx_id);
+        if(result==-1) return NULL;
+
 	}
     trx_commit(trx_id);
 
@@ -596,42 +609,31 @@ scan_thread_func(void* arg)
 	lock_t*			lock_array[TABLE_NUMBER][RECORD_NUMBER];
 
 	for (int i = 0; i < SCAN_COUNT; i++) {
-        //printf("scanning %d\n",i);
+        printf("scanning %d\n",i);
 		sum_money = 0;
 
 		/* Iterate all accounts and summate the amount of money. */
 		for (int table_id = 0; table_id < TABLE_NUMBER; table_id++) {
 			for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
-                
-				/* Acquire lock!! */
-                /*
-				lock_array[table_id][record_id] =
-					lock_acquire(1, table_id, record_id, trx_id, SHARED);
-                if(lock_array[table_id][record_id] == nullptr) {
-                    printf("abort!\n");
-                    trx_commit(trx_id);
-                    return NULL;
-                }
-                */
-                int result=-1;
+                int result;
                 char ret_val[120];
                 uint16_t val_size;
+                uint16_t old_val_size;
+                string num_str;
+                int num_int;
 
-                while(result!=-1)
-                    result = db_find(table_id, record_id, ret_val, &val_size, trx_id);
+                /* withdraw */
+                result = db_find(table_id, record_id, ret_val, &val_size, trx_id);
+                if(result==-1) return NULL;
+
+                num_str = "";
+                for(int i = 0; i<val_size; i++) num_str += ret_val[i];
+                num_int = stoi(num_str);
 
 				/* Summation. */
-				sum_money += accounts[table_id][record_id];
+				sum_money += num_int;
 			}
 		}
-
-		for (int table_id = 0; table_id < TABLE_NUMBER; table_id++) {
-			for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
-				/* Release lock!! */
-				//lock_release(lock_array[table_id][record_id]);
-			}
-		}
-
         
 		/* Check consistency. */
         
@@ -658,14 +660,17 @@ int main()
 	srand(time(NULL));
 
 	/* Initialize accounts. */
-	for (int table_id = 0; table_id < TABLE_NUMBER; table_id++) {
-		for (int record_id = 0; record_id < RECORD_NUMBER; record_id++) {
-			accounts[table_id][record_id] = INITIAL_MONEY;
+	for (int64_t table_id = 0; table_id < TABLE_NUMBER; table_id++) {
+		for (int64_t record_id = 0; record_id < RECORD_NUMBER; record_id++) {
+            printf("initializing\n");
+            string value = to_string(INITIAL_MONEY);
+            db_insert(table_id, record_id, value.c_str(), value.length());
 		}
 	}
 
+    init_db(1000);
+
 	/* Initialize your lock table. */
-	init_lock_table();
 
 	/* thread create */
 	for (int i = 0; i < TRANSFER_THREAD_NUMBER; i++) {
@@ -705,7 +710,7 @@ int main()
 }
 #endif
 
-#define single_thread_test 100
+//#define single_thread_test 100
 #ifdef single_thread_test
 #include "trx.h"
 #include "db.h"
