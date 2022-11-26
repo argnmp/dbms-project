@@ -86,6 +86,7 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
     }
     
     lock_t* cursor = trx_map[trx_id].head;
+    queue<pair<char*, uint16_t>> restored_queue = trx_map[trx_id].undo_values;
 
     trx_table.trx_map.erase(trx_id);
 
@@ -103,6 +104,12 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
 
     result = pthread_mutex_unlock(&lock_table_latch); 
     if(result!=0) return 0;
+
+    while(!restored_queue.empty()){
+        auto i = restored_queue.front();
+        restored_queue.pop();
+        delete i.first;
+    }
     
     return trx_id; 
 }
@@ -148,6 +155,8 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
 
             buf_unpin(cursor->sentinel->table_id, acquired_leaf.pn);
             buf_unpin(cursor->sentinel->table_id, 0);
+
+            delete restored_item.first;
             
         }
         lock_release(cursor);
