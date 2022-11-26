@@ -30,12 +30,13 @@ public:
     int create_entry();
 
     // 0: success, -1: fail
-    int connect_lock_obj(int trx_id, lock_t* lock_obj, char* value, uint16_t old_val_size); 
+    int connect_lock_obj(int trx_id, lock_t* lock_obj); 
 
     // trx_id: success, 0: fail
     int release_trx_lock_obj(int trx_id);
     // trx_id: success, 0: fail
     int abort_trx_lock_obj(int trx_id);
+    int push_undo_value(int trx_id, char* value, uint16_t old_val_size);
 };
 extern TRX_Table trx_table;
 
@@ -101,7 +102,7 @@ extern unordered_map<pair<int64_t,pagenum_t>, hash_table_entry, pair_for_hash> h
 
 
 /* APIs for lock table */
-lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, char* value, uint16_t old_val_size);
+lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode);
 int lock_release(lock_t* lock_obj);
 
 /*
