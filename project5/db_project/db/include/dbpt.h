@@ -42,9 +42,11 @@ public:
 
     // 0 for success / -1 for fail
     int leaf_find(int64_t key, char* ret_val, uint16_t* val_size);
+    int leaf_find_ret(int64_t key, char* ret_val, uint16_t* val_size, slot_t* slot);
 
     // 0 for success / -1 for fail
     int leaf_find_slot(int64_t key);
+    int leaf_find_slot_ret(int64_t key, slot_t* slot);
 
     // 0 for success / -1 for fail
     int leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size);

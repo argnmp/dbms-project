@@ -14,6 +14,11 @@ uint16_t slot_t::get_offset(){
     memcpy(&offset, data + 10, sizeof(offset));
     return offset;
 }
+int slot_t::get_trx(){
+    int trx;
+    memcpy(&trx, data + 12, sizeof(trx));
+    return trx;
+}
 void slot_t::set_key(int64_t key){
     memcpy(data, &key, sizeof(key)); 
 }
@@ -22,6 +27,9 @@ void slot_t::set_size(uint16_t size){
 }
 void slot_t::set_offset(uint16_t offset){
     memcpy(data+10, &offset, sizeof(offset));
+}
+void slot_t::set_trx(int trx){
+    memcpy(data+12, &trx, sizeof(trx));
 }
 
 int64_t kpn_t::get_key(){

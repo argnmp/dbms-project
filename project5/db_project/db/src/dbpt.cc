@@ -157,7 +157,7 @@ int Node::leaf_insert(int64_t key, const char* value, uint16_t val_size){
     slot.set_key(key);
     slot.set_offset(leaf_ptr->amount_of_free_space + SLOT_SIZE * leaf_ptr -> number_of_keys - val_size);   
     slot.set_size(val_size);
-    memcpy(leaf_ptr->data + insertion_point *SLOT_SIZE, &slot, sizeof(slot));
+    memcpy(leaf_ptr->data + insertion_point *SLOT_SIZE, &slot.data, sizeof(slot.data));
     memcpy(leaf_ptr->data + slot.get_offset(), value, sizeof(uint8_t)*val_size);
     leaf_ptr->amount_of_free_space -= SLOT_SIZE + val_size;
     leaf_ptr->number_of_keys += 1;
@@ -173,7 +173,7 @@ int Node::leaf_append_unsafe(int64_t key, const char* value, uint16_t val_size){
     slot.set_key(key);
     slot.set_offset(leaf_ptr->amount_of_free_space + SLOT_SIZE * leaf_ptr -> number_of_keys - val_size);   
     slot.set_size(val_size);
-    memcpy(leaf_ptr->data + (leaf_ptr->number_of_keys)*SLOT_SIZE, &slot, sizeof(slot));
+    memcpy(leaf_ptr->data + (leaf_ptr->number_of_keys)*SLOT_SIZE, &slot.data, sizeof(slot.data));
     memcpy(leaf_ptr->data + slot.get_offset(), value, sizeof(uint8_t)*val_size);
     leaf_ptr->amount_of_free_space -= SLOT_SIZE + val_size;
     leaf_ptr->number_of_keys += 1;
@@ -187,8 +187,33 @@ int Node::leaf_find(int64_t key, char* ret_val, uint16_t* val_size){
     while(low<=high){
         target = (low+high)/2;
         slot_t tmp;
-        memcpy(&tmp, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp)); 
+        memcpy(&tmp.data, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp.data)); 
         if(tmp.get_key()==key){
+            memcpy(ret_val, leaf_ptr->data + tmp.get_offset(), sizeof(uint8_t)* tmp.get_size());
+            *val_size = tmp.get_size();
+            return 0;
+        }
+        else if (tmp.get_key() > key){
+            high = target-1;
+        }
+        else {
+            low = target+1;
+        }
+    }
+    return -1;
+
+}
+int Node::leaf_find_ret(int64_t key, char* ret_val, uint16_t* val_size, slot_t* slot){
+    //binary search
+    int low = 0; 
+    int high = leaf_ptr->number_of_keys -1;
+    int target;
+    while(low<=high){
+        target = (low+high)/2;
+        slot_t tmp;
+        memcpy(&tmp.data, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp.data)); 
+        if(tmp.get_key()==key){
+            memcpy(slot->data, tmp.data, sizeof(tmp.data));
             memcpy(ret_val, leaf_ptr->data + tmp.get_offset(), sizeof(uint8_t)* tmp.get_size());
             *val_size = tmp.get_size();
             return 0;
@@ -212,11 +237,11 @@ int Node::leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t*
     while(low<=high){
         target = (low+high)/2;
         slot_t tmp;
-        memcpy(&tmp, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp)); 
+        memcpy(&tmp.data, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp.data)); 
         if(tmp.get_key()==key){
             *old_val_size = tmp.get_size();
             tmp.set_size(new_val_size);
-            memcpy(leaf_ptr->data + target*SLOT_SIZE, &tmp, sizeof(tmp)); 
+            memcpy(leaf_ptr->data + target*SLOT_SIZE, &tmp.data, sizeof(tmp.data)); 
             memcpy(leaf_ptr->data + tmp.get_offset(), value, sizeof(uint8_t)* new_val_size);
             return 0;
         }
@@ -234,7 +259,7 @@ int Node::leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t*
 void Node::leaf_print_all(){
     for(int i = 0; i<leaf_ptr->number_of_keys; i++){
         slot_t tmp;
-        memcpy(&tmp, leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
+        memcpy(&tmp.data, leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp.data)); 
         char ret_val[112];
         uint16_t val_size;
         leaf_find(tmp.get_key(), ret_val, &val_size);
@@ -255,7 +280,7 @@ int Node::leaf_find_slot(int64_t key){
     while(low<=high){
         target = (low+high)/2;
         slot_t tmp;
-        memcpy(&tmp, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp)); 
+        memcpy(&tmp.data, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp.data)); 
         if(tmp.get_key()==key){
             return 0;
         }
@@ -270,8 +295,32 @@ int Node::leaf_find_slot(int64_t key){
     return -1;
 
 }
+int Node::leaf_find_slot_ret(int64_t key, slot_t* slot){
+    //binary search
+    int low = 0; 
+    int high = leaf_ptr->number_of_keys -1;
+    int target;
+    while(low<=high){
+        target = (low+high)/2;
+        slot_t tmp;
+        memcpy(&tmp.data, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp.data)); 
+        if(tmp.get_key()==key){
+            memcpy(slot->data, tmp.data, sizeof(tmp.data));
+            return 0;
+        }
+        else if (tmp.get_key() > key){
+            high = target-1;
+        }
+        else {
+            low = target+1;
+        }
+    }
+
+    return -1;
+
+}
 void Node::leaf_move_slot(slot_t* dest, uint16_t slotnum){
-    memcpy(dest, leaf_ptr->data + slotnum*SLOT_SIZE, sizeof(slot_t));
+    memcpy(dest->data, leaf_ptr->data + slotnum*SLOT_SIZE, sizeof(slot_t));
 }
 void Node::leaf_move_value(char* dest, uint16_t size, uint16_t offset){
     memcpy(dest, leaf_ptr->data + offset, sizeof(uint8_t)*size);
@@ -288,7 +337,7 @@ void Node::leaf_remove_unsafe(int64_t key){
     for(int i = 0; i<copy.leaf_ptr->number_of_keys; i++){
         slot_t tmp;
         //change for leaf_move_slot
-        memcpy(&tmp, copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
+        memcpy(&tmp.data, copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp.data)); 
         if(tmp.get_key() == key) continue;
         char ret_val[MAX_VALUE_SIZE];
         copy.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
@@ -306,7 +355,7 @@ void Node::leaf_pack_values(int from, int to){
     for(int i = from; i<=to; i++){
         slot_t tmp;
         //change for leaf_move_slot
-        memcpy(&tmp, leaf_copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp)); 
+        memcpy(&tmp.data, leaf_copy.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp.data)); 
         char ret_val[MAX_VALUE_SIZE];
         leaf_copy.leaf_move_value(ret_val, tmp.get_size(), tmp.get_offset());
         leaf_append_unsafe(tmp.get_key(), ret_val, tmp.get_size());
@@ -1159,7 +1208,7 @@ int dbpt_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<
     int idx;
     for(idx = 0; idx<target.leaf_ptr->number_of_keys; idx++){
         slot_t tmp;
-        memcpy(&tmp, target.leaf_ptr->data + idx*SLOT_SIZE, sizeof(tmp));
+        memcpy(&tmp.data, target.leaf_ptr->data + idx*SLOT_SIZE, sizeof(tmp.data));
         if(tmp.get_key()>=begin_key) break;
     }
     if(idx == target.leaf_ptr->number_of_keys){
@@ -1178,7 +1227,7 @@ int dbpt_scan(int64_t table_id, int64_t begin_key, int64_t end_key, std::vector<
     while(!exit_flag){
         for(; idx<target.leaf_ptr->number_of_keys; idx++){
             slot_t tmp;
-            memcpy(&tmp, target.leaf_ptr->data + idx*SLOT_SIZE, sizeof(tmp));
+            memcpy(&tmp.data, target.leaf_ptr->data + idx*SLOT_SIZE, sizeof(tmp.data));
             if(tmp.get_key() > end_key){
                 exit_flag = true;
                 break;

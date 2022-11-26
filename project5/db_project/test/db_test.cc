@@ -245,26 +245,6 @@ class DbRandTest : public ::testing::Test {
 
         DbRandTest() {
             sample = 100000;
-            /*
-            //initialize sample
-            for(int64_t i = 1; i<=sample; i++){
-                insert_keys.push_back(i);
-                delete_keys.push_back(i);
-            }
-            random_device rd;
-            mt19937 mt(rd());
-            shuffle(insert_keys.begin(), insert_keys.end(), mt);
-            shuffle(delete_keys.begin(), delete_keys.end(), mt);
-            
-            for(int i = 0; i<sample; i++){
-                printf("%d ",insert_keys[i]);
-            }
-            printf("\n");
-            for(int i = 0; i<sample; i++){
-                printf("%d ",delete_keys[i]);
-            }
-            printf("\n");
-            */
 
             ifstream insert_keys_s("../../test/insert_keys_100000.txt");
             ifstream delete_keys_s("../../test/delete_keys_100000.txt");
@@ -290,7 +270,7 @@ TEST_F(DbRandTest, RandomInsertTest){
     //printf("start test\n");
     for(auto i: insert_keys){
         //printf("inserting %d\n",i);
-        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + to_string(i);
         int result = db_insert(table_id, i, value.c_str(), value.length());
         ASSERT_EQ(result, 0);
     }

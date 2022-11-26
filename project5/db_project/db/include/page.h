@@ -9,7 +9,7 @@ using namespace std;
 #define INITIAL_DB_FILE_SIZE (10 * 1024 * 1024)  // 10 MiB
 #define PAGE_SIZE (4 * 1024)                     // 4 KiB
 #define PAGE_HEADER_SIZE 128
-#define SLOT_SIZE 12
+#define SLOT_SIZE 16
 #define KPN_SIZE 16
 #define MAX_KPN_NUMBER 248
 #define SPLIT_THRESHOLD 1984
@@ -57,13 +57,15 @@ struct page_t {
 //slot structure for leaf_page_t
 class slot_t{
 public:
-    uint8_t data[12];
+    uint8_t data[16] = {0};
     int64_t get_key();
     uint16_t get_size();
     uint16_t get_offset();
+    int get_trx();
     void set_key(int64_t key);
     void set_size(uint16_t size);
     void set_offset(uint16_t offset);
+    void set_trx(int trx);
 };
 
 // allocated - leaf page structure
