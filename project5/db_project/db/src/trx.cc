@@ -32,7 +32,7 @@ int TRX_Table::create_entry(){
     return return_value;
 }
 
-int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
+int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj, char* value, uint16_t old_val_size){
 
     int result;
     result = pthread_mutex_lock(&trx_table_latch); 
@@ -43,10 +43,15 @@ int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
         pthread_mutex_unlock(&trx_table_latch);
         return -1;
     }
+
+    // save undo_values
     
     if(trx_map[trx_id].head == nullptr){
         trx_map[trx_id].head = lock_obj;
         trx_map[trx_id].tail = lock_obj;
+        if(lock_obj->lock_mode==EXCLUSIVE){
+            trx_map[trx_id].undo_values.push({value, old_val_size});
+        }
     }
     else if(trx_map[trx_id].tail == lock_obj){
         //do nothing
@@ -54,6 +59,9 @@ int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
     else {
         trx_map[trx_id].tail->next_lock = lock_obj;
         trx_map[trx_id].tail = lock_obj;
+        if(lock_obj->lock_mode==EXCLUSIVE){
+            trx_map[trx_id].undo_values.push({value, old_val_size});
+        }
     }
 
     result = pthread_mutex_unlock(&trx_table_latch);
@@ -112,6 +120,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     }
     
     lock_t* cursor = trx_map[trx_id].head;
+    queue<pair<char*, uint16_t>> restored_queue = trx_map[trx_id].undo_values;
 
     trx_table.trx_map.erase(trx_id);
 
@@ -125,14 +134,16 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
         //printf("record_id: %d\n",cursor->record_id);
         //printf("release\n");
         lock_t* next = cursor -> next_lock;
-        if(cursor->lock_mode == EXCLUSIVE && cursor->value != nullptr){
+        if(cursor->lock_mode == EXCLUSIVE){
+            auto restored_item =  restored_queue.front();
+            restored_queue.pop();
 
             h_page_t header_node;
             buf_read_page(cursor->sentinel->table_id, 0, (page_t*) &header_node);      
 
             Node acquired_leaf = find_leaf(cursor->sentinel->table_id, header_node.root_page_number, cursor->record_id);
             uint16_t dummy;
-            acquired_leaf.leaf_update(cursor->record_id, cursor->value, cursor->old_val_size, &dummy);
+            acquired_leaf.leaf_update(cursor->record_id, restored_item.first, restored_item.second, &dummy);
             acquired_leaf.write_to_disk(); 
 
             buf_unpin(cursor->sentinel->table_id, acquired_leaf.pn);
@@ -329,8 +340,6 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
     lck->record_id = key;
     lck->next_lock = nullptr;
     lck->trx_id = trx_id;
-    lck->value = value;
-    lck->old_val_size = old_val_size;
     //lck->cond = PTHREAD_COND_INITIALIZER;
     result = pthread_cond_init(&(lck->cond), NULL);
     if(result!=0) return nullptr;
@@ -376,8 +385,6 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             if(lck->lock_mode == EXCLUSIVE){
                 lock_detach(target, same_trx_lock_obj); 
                 same_trx_lock_obj->lock_mode = EXCLUSIVE;
-                same_trx_lock_obj->old_val_size = lck->old_val_size;
-                same_trx_lock_obj->value = lck->value;
 
                 lock_detach(target, lck);
                 
@@ -483,7 +490,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                     }
                 }
                 //trx_table connection
-                trx_table.connect_lock_obj(trx_id, lck);
+                trx_table.connect_lock_obj(trx_id, lck, value, old_val_size);
 
                 result = pthread_cond_wait(&lck->cond, &lock_table_latch);
                 if(result!=0) return nullptr;
@@ -505,7 +512,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                 }
 
                 //trx_table connection
-                trx_table.connect_lock_obj(trx_id, lck);
+                trx_table.connect_lock_obj(trx_id, lck, value, old_val_size);
 
                 result = pthread_cond_wait(&lck->cond, &lock_table_latch);
                 if(result!=0) return nullptr;
@@ -514,12 +521,12 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         }
         else {
             //trx_table connection
-            trx_table.connect_lock_obj(trx_id, lck);
+            trx_table.connect_lock_obj(trx_id, lck, value, old_val_size);
         }
     }
     else {
         //trx_table connection
-        trx_table.connect_lock_obj(trx_id, lck);
+        trx_table.connect_lock_obj(trx_id, lck, value, old_val_size);
     }
 
 

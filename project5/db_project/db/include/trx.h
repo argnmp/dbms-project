@@ -17,6 +17,7 @@ typedef struct lock_t lock_t;
 struct trx_map_entry_t {
     lock_t* head;
     lock_t* tail;
+    queue<pair<char*, uint16_t>> undo_values; 
 };
 
 extern pthread_mutex_t trx_table_latch;    
@@ -29,7 +30,7 @@ public:
     int create_entry();
 
     // 0: success, -1: fail
-    int connect_lock_obj(int trx_id, lock_t* lock_obj); 
+    int connect_lock_obj(int trx_id, lock_t* lock_obj, char* value, uint16_t old_val_size); 
 
     // trx_id: success, 0: fail
     int release_trx_lock_obj(int trx_id);
@@ -92,8 +93,6 @@ struct lock_t {
     int64_t record_id;
     lock_t* next_lock;
     int trx_id;
-    char* value;
-    uint16_t old_val_size;
 };
 
 
