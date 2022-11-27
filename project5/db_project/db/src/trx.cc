@@ -334,7 +334,7 @@ void lock_detach(hash_table_entry* target, lock_t* lock_obj){
 }
 
 lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, bool* add_undo_value) {
-    //printf("lock_acquire\n");
+    //printf("trx_id: %d, lock_acquire\n",trx_id);
     int result = 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
@@ -355,7 +355,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
      * implicit lock sequence start
      */
 
-    /*
+    //printf("implicit lock sequence start\n");
     lock_t* same_record_lock_obj = target->tail;
     while(same_record_lock_obj != nullptr){
         if(same_record_lock_obj->record_id != key){
@@ -365,6 +365,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         break;
     }
     if(same_record_lock_obj == nullptr){
+        //printf("dbg1\n");
         h_page_t header_node;
         buf_read_page(table_id, 0, (page_t*) &header_node);      
         buf_unpin(table_id, 0);
@@ -374,6 +375,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         int slotnum;
         int result = leaf.leaf_find_slot_ret(key, &slot, &slotnum);
         if(slot.get_trx()==0){
+        //printf("dbg2\n");
             if(lock_mode==SHARED){
                 buf_unpin(table_id, leaf.pn);
             }
@@ -391,6 +393,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             }
         }
         else if(slot.get_trx()==trx_id){
+        //printf("dbg3\n");
             buf_unpin(table_id, leaf.pn);
 
             result = pthread_mutex_unlock(&lock_table_latch); 
@@ -401,11 +404,15 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         }
         else {
              
+        //printf("dbg4\n");
             int result;
             result = pthread_mutex_lock(&trx_table_latch); 
             if(result != 0) return 0;
+            //printf("trx_table_latch acquire\n");
 
-            if(trx_table.trx_map.find(trx_id)!=trx_table.trx_map.end()){
+            //printf("slot trx: %d\n", slot.get_trx());
+            if(trx_table.trx_map.find(slot.get_trx())!=trx_table.trx_map.end()){
+        //printf("dbg5\n");
                 lock_t* exp = new lock_t;
                 exp->next = nullptr;
                 exp->prev = nullptr;
@@ -418,6 +425,8 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                 if(result!=0) {
                     result = pthread_mutex_unlock(&trx_table_latch);
                     if(result != 0) return 0;
+                    result = pthread_mutex_unlock(&lock_table_latch); 
+                    if(result!=0) return nullptr;
 
                     return nullptr;
                 };
@@ -434,31 +443,43 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                     target->tail = exp; 
                 }
 
-                if(trx_table.trx_map[trx_id].head == nullptr){
-                    trx_table.trx_map[trx_id].head = exp;
-                    trx_table.trx_map[trx_id].tail = exp;
+                if(trx_table.trx_map[exp->trx_id].head == nullptr){
+                    trx_table.trx_map[exp->trx_id].head = exp;
+                    trx_table.trx_map[exp->trx_id].tail = exp;
                 }
-                else if(trx_table.trx_map[trx_id].tail == exp){
+                else if(trx_table.trx_map[exp->trx_id].tail == exp){
                     //do nothing
                 }
                 else {
-                    trx_table.trx_map[trx_id].tail->next_lock = exp;
-                    trx_table.trx_map[trx_id].tail = exp;
+                    trx_table.trx_map[exp->trx_id].tail->next_lock = exp;
+                    trx_table.trx_map[exp->trx_id].tail = exp;
                 }
 
                 buf_unpin(table_id, leaf.pn);
 
+            //printf("trx_table_latch release\n");
+                result = pthread_mutex_unlock(&trx_table_latch);
+                if(result != 0) return 0;
+
             }
             else {
+        //printf("dbg6\n");
                 if(lock_mode==SHARED){
+        //printf("dbg7\n");
                     buf_unpin(table_id, leaf.pn);
+
+            //printf("trx_table_latch release\n");
+                    result = pthread_mutex_unlock(&trx_table_latch);
+                    if(result != 0) return 0;
                 } 
                 else{
+        //printf("dbg8\n");
                     slot.set_trx(trx_id);
                     leaf.leaf_set_slot(&slot, slotnum);
                     leaf.write_to_disk();
                     buf_unpin(table_id, leaf.pn);
 
+            //printf("trx_table_latch release\n");
                     result = pthread_mutex_unlock(&trx_table_latch);
                     if(result != 0) return 0;
 
@@ -474,13 +495,11 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             }
 
 
-            result = pthread_mutex_unlock(&trx_table_latch);
-            if(result != 0) return 0;
 
         }
         
     }
-*/
+    //printf("implicit lock sequence end\n");
 
     /*
      * implicit lock sequence end
@@ -854,14 +873,14 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, in
 
 // 0: success: non-zero: failed
 int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size, int trx_id){
-
+    //printf("trx_id: %d, db_update\n",trx_id);
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
     buf_unpin(table_id, 0);
     if(header_node.root_page_number==0){
         return 1;
     }
-
+    //printf("update db_update dbg\n");
     Node leaf = find_leaf(table_id, header_node.root_page_number, key);
     int result = leaf.leaf_find_slot(key);
 
