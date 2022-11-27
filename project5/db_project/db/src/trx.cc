@@ -355,6 +355,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
      * implicit lock sequence start
      */
 
+    /*
     lock_t* same_record_lock_obj = target->tail;
     while(same_record_lock_obj != nullptr){
         if(same_record_lock_obj->record_id != key){
@@ -479,6 +480,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         }
         
     }
+*/
 
     /*
      * implicit lock sequence end
