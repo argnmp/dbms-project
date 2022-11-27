@@ -295,7 +295,7 @@ int Node::leaf_find_slot(int64_t key){
     return -1;
 
 }
-int Node::leaf_find_slot_ret(int64_t key, slot_t* slot){
+int Node::leaf_find_slot_ret(int64_t key, slot_t* slot, int* slotnum){
     //binary search
     int low = 0; 
     int high = leaf_ptr->number_of_keys -1;
@@ -321,6 +321,10 @@ int Node::leaf_find_slot_ret(int64_t key, slot_t* slot){
 }
 void Node::leaf_move_slot(slot_t* dest, uint16_t slotnum){
     memcpy(dest->data, leaf_ptr->data + slotnum*SLOT_SIZE, sizeof(slot_t));
+}
+void Node::leaf_set_slot(slot_t* src, uint16_t slotnum){
+    memcpy(leaf_ptr->data + slotnum*SLOT_SIZE, src->data, sizeof(slot_t));
+
 }
 void Node::leaf_move_value(char* dest, uint16_t size, uint16_t offset){
     memcpy(dest, leaf_ptr->data + offset, sizeof(uint8_t)*size);

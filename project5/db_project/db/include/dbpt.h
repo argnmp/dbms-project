@@ -46,12 +46,13 @@ public:
 
     // 0 for success / -1 for fail
     int leaf_find_slot(int64_t key);
-    int leaf_find_slot_ret(int64_t key, slot_t* slot);
+    int leaf_find_slot_ret(int64_t key, slot_t* slot, int* slotnum);
 
     // 0 for success / -1 for fail
     int leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size);
 
     void leaf_move_slot(slot_t* dest, uint16_t slotnum);
+    void leaf_set_slot(slot_t* src, uint16_t slotnum);
     void leaf_move_value(char* dest, uint16_t size, uint16_t offset);
     void leaf_print_all();
 

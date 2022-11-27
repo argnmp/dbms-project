@@ -363,7 +363,120 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         }
         break;
     }
-    if(same_record_lock_obj != nullptr){
+    if(same_record_lock_obj == nullptr){
+        h_page_t header_node;
+        buf_read_page(table_id, 0, (page_t*) &header_node);      
+        buf_unpin(table_id, 0);
+
+        Node leaf = find_leaf(table_id, header_node.root_page_number, key);
+        slot_t slot;
+        int slotnum;
+        int result = leaf.leaf_find_slot_ret(key, &slot, &slotnum);
+        if(slot.get_trx()==0){
+            if(lock_mode==SHARED){
+                buf_unpin(table_id, leaf.pn);
+            }
+            else {
+                slot.set_trx(trx_id);
+                leaf.leaf_set_slot(&slot, slotnum);
+                leaf.write_to_disk();
+                buf_unpin(table_id, leaf.pn);
+
+                result = pthread_mutex_unlock(&lock_table_latch); 
+                if(result!=0) return nullptr;
+
+                //need to be modified. need to return lock_obj pointer which is not nullptr
+                return new lock_t;
+            }
+        }
+        else if(slot.get_trx()==trx_id){
+            buf_unpin(table_id, leaf.pn);
+
+            result = pthread_mutex_unlock(&lock_table_latch); 
+            if(result!=0) return nullptr;
+
+            //need to be modified. need to return lock_obj pointer which is not nullptr
+            return new lock_t;
+        }
+        else {
+             
+            int result;
+            result = pthread_mutex_lock(&trx_table_latch); 
+            if(result != 0) return 0;
+
+            if(trx_table.trx_map.find(trx_id)!=trx_table.trx_map.end()){
+                lock_t* exp = new lock_t;
+                exp->next = nullptr;
+                exp->prev = nullptr;
+                exp->sentinel = &hash_table[{table_id, page_id}];
+                exp->lock_mode = EXCLUSIVE;
+                exp->record_id = slot.get_key();
+                exp->next_lock = nullptr;
+                exp->trx_id = slot.get_trx();
+                result = pthread_cond_init(&(exp->cond), NULL);
+                if(result!=0) {
+                    result = pthread_mutex_unlock(&trx_table_latch);
+                    if(result != 0) return 0;
+
+                    return nullptr;
+                };
+
+                bool is_immediate;
+                is_immediate = (target->head == nullptr);
+                if(is_immediate){
+                    target->head = exp;
+                    target->tail = exp;
+                }
+                else {
+                    target->tail->next = exp;
+                    exp->prev = target->tail;
+                    target->tail = exp; 
+                }
+
+                if(trx_table.trx_map[trx_id].head == nullptr){
+                    trx_table.trx_map[trx_id].head = exp;
+                    trx_table.trx_map[trx_id].tail = exp;
+                }
+                else if(trx_table.trx_map[trx_id].tail == exp){
+                    //do nothing
+                }
+                else {
+                    trx_table.trx_map[trx_id].tail->next_lock = exp;
+                    trx_table.trx_map[trx_id].tail = exp;
+                }
+
+                buf_unpin(table_id, leaf.pn);
+
+            }
+            else {
+                if(lock_mode==SHARED){
+                    buf_unpin(table_id, leaf.pn);
+                } 
+                else{
+                    slot.set_trx(trx_id);
+                    leaf.leaf_set_slot(&slot, slotnum);
+                    leaf.write_to_disk();
+                    buf_unpin(table_id, leaf.pn);
+
+                    result = pthread_mutex_unlock(&trx_table_latch);
+                    if(result != 0) return 0;
+
+                    buf_unpin(table_id, leaf.pn);
+
+                    result = pthread_mutex_unlock(&lock_table_latch); 
+                    if(result!=0) return nullptr;
+                    //need to be modified. need to return lock_obj pointer which is not nullptr
+                    return new lock_t;
+
+                }
+
+            }
+
+
+            result = pthread_mutex_unlock(&trx_table_latch);
+            if(result != 0) return 0;
+
+        }
         
     }
 
@@ -743,7 +856,6 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
     buf_unpin(table_id, 0);
-
     if(header_node.root_page_number==0){
         return 1;
     }
