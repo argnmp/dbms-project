@@ -451,13 +451,13 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                     //do nothing
                 }
                 else {
-                    /*
                     trx_table.trx_map[exp->trx_id].tail->next_lock = exp;
                     trx_table.trx_map[exp->trx_id].tail = exp;
-                    */
+                    /*
                     exp->next_lock = trx_table.trx_map[exp->trx_id].head;
                     trx_table.trx_map[exp->trx_id].head = exp;
                     //need to be changed because this just attatch explict lock to the head of trx lock list.
+                    */
                 }
 
                 buf_unpin(table_id, leaf.pn);
