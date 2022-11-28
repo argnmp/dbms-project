@@ -396,6 +396,8 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         //printf("dbg3\n");
             buf_unpin(table_id, leaf.pn);
 
+            *add_undo_value = false;
+
             result = pthread_mutex_unlock(&lock_table_latch); 
             if(result!=0) return nullptr;
 
