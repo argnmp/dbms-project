@@ -131,28 +131,29 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
 
+    while(!restored_queue.empty()){
+        auto restored_item =  restored_queue.front();
+        restored_queue.pop();
+
+        h_page_t header_node;
+        buf_read_page(cursor->sentinel->table_id, 0, (page_t*) &header_node);      
+
+        Node acquired_leaf = find_leaf(cursor->sentinel->table_id, header_node.root_page_number, cursor->record_id);
+        uint16_t dummy;
+        acquired_leaf.leaf_update(cursor->record_id, restored_item.first, restored_item.second, &dummy);
+        acquired_leaf.write_to_disk(); 
+
+        buf_unpin(cursor->sentinel->table_id, acquired_leaf.pn);
+        buf_unpin(cursor->sentinel->table_id, 0);
+
+        delete restored_item.first;
+
+    }
+
     while(cursor != nullptr){
         //printf("record_id: %d\n",cursor->record_id);
         //printf("release\n");
         lock_t* next = cursor -> next_lock;
-        if(cursor->lock_mode == EXCLUSIVE){
-            auto restored_item =  restored_queue.front();
-            restored_queue.pop();
-
-            h_page_t header_node;
-            buf_read_page(cursor->sentinel->table_id, 0, (page_t*) &header_node);      
-
-            Node acquired_leaf = find_leaf(cursor->sentinel->table_id, header_node.root_page_number, cursor->record_id);
-            uint16_t dummy;
-            acquired_leaf.leaf_update(cursor->record_id, restored_item.first, restored_item.second, &dummy);
-            acquired_leaf.write_to_disk(); 
-
-            buf_unpin(cursor->sentinel->table_id, acquired_leaf.pn);
-            buf_unpin(cursor->sentinel->table_id, 0);
-
-            delete restored_item.first;
-            
-        }
         lock_release(cursor);
         //printf("after release\n");
         cursor = next;
@@ -460,12 +461,12 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                     trx_table.trx_map[exp->trx_id].head = exp;
                     //need to be changed because this just attatch explict lock to the head of trx lock list.
                 }
+                result = pthread_mutex_unlock(&trx_table_latch);
+                if(result != 0) return -1;
 
                 buf_unpin(table_id, leaf.pn);
 
             //printf("trx_table_latch release\n");
-                result = pthread_mutex_unlock(&trx_table_latch);
-                if(result != 0) return -1;
 
             }
             else {
