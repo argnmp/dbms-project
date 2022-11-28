@@ -308,6 +308,7 @@ int Node::leaf_find_slot_ret(int64_t key, slot_t* slot, int* slotnum){
         memcpy(&tmp.data, leaf_ptr->data + target*SLOT_SIZE, sizeof(tmp.data)); 
         if(tmp.get_key()==key){
             memcpy(slot->data, tmp.data, sizeof(tmp.data));
+            *slotnum = target;
             return 0;
         }
         else if (tmp.get_key() > key){
