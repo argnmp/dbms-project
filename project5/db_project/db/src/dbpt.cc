@@ -157,6 +157,7 @@ int Node::leaf_insert(int64_t key, const char* value, uint16_t val_size){
     slot.set_key(key);
     slot.set_offset(leaf_ptr->amount_of_free_space + SLOT_SIZE * leaf_ptr -> number_of_keys - val_size);   
     slot.set_size(val_size);
+    slot.set_trx(0);
     memcpy(leaf_ptr->data + insertion_point *SLOT_SIZE, &slot.data, sizeof(slot.data));
     memcpy(leaf_ptr->data + slot.get_offset(), value, sizeof(uint8_t)*val_size);
     leaf_ptr->amount_of_free_space -= SLOT_SIZE + val_size;
@@ -173,6 +174,7 @@ int Node::leaf_append_unsafe(int64_t key, const char* value, uint16_t val_size){
     slot.set_key(key);
     slot.set_offset(leaf_ptr->amount_of_free_space + SLOT_SIZE * leaf_ptr -> number_of_keys - val_size);   
     slot.set_size(val_size);
+    slot.set_trx(0);
     memcpy(leaf_ptr->data + (leaf_ptr->number_of_keys)*SLOT_SIZE, &slot.data, sizeof(slot.data));
     memcpy(leaf_ptr->data + slot.get_offset(), value, sizeof(uint8_t)*val_size);
     leaf_ptr->amount_of_free_space -= SLOT_SIZE + val_size;
