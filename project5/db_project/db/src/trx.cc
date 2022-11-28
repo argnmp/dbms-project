@@ -333,12 +333,13 @@ void lock_detach(hash_table_entry* target, lock_t* lock_obj){
 
 }
 
-lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, bool* add_undo_value) {
+//deadlock or inner error: -1, success: 0
+int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, bool* add_undo_value) {
     //printf("trx_id: %d, lock_acquire\n",trx_id);
     int result = 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
-    if(result!=0) return nullptr;
+    if(result!=0) return -1;
     //printf("lock_acquire trx: %d, table_id: %d, page_id: %d, record_id: %d\n", trx_id, table_id, page_id, key);
 
     if(hash_table.find({table_id, page_id})==hash_table.end()){
@@ -386,10 +387,9 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                 buf_unpin(table_id, leaf.pn);
 
                 result = pthread_mutex_unlock(&lock_table_latch); 
-                if(result!=0) return nullptr;
+                if(result!=0) return -1;
 
-                //need to be modified. need to return lock_obj pointer which is not nullptr
-                return new lock_t;
+                return 0;
             }
         }
         else if(slot.get_trx()==trx_id){
@@ -399,17 +399,17 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             *add_undo_value = false;
 
             result = pthread_mutex_unlock(&lock_table_latch); 
-            if(result!=0) return nullptr;
+            if(result!=0) return -1;
 
             //need to be modified. need to return lock_obj pointer which is not nullptr
-            return new lock_t;
+            return 0;
         }
         else {
              
         //printf("dbg4\n");
             int result;
             result = pthread_mutex_lock(&trx_table_latch); 
-            if(result != 0) return 0;
+            if(result != 0) return -1;
             //printf("trx_table_latch acquire\n");
 
             //printf("slot trx: %d\n", slot.get_trx());
@@ -426,11 +426,11 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                 result = pthread_cond_init(&(exp->cond), NULL);
                 if(result!=0) {
                     result = pthread_mutex_unlock(&trx_table_latch);
-                    if(result != 0) return 0;
+                    if(result != 0) return -1;
                     result = pthread_mutex_unlock(&lock_table_latch); 
-                    if(result!=0) return nullptr;
+                    if(result!=0) return -1;
 
-                    return nullptr;
+                    return -1;
                 };
 
                 bool is_immediate;
@@ -453,11 +453,11 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                     //do nothing
                 }
                 else {
-                    trx_table.trx_map[exp->trx_id].tail->next_lock = exp;
-                    trx_table.trx_map[exp->trx_id].tail = exp;
+                    //trx_table.trx_map[exp->trx_id].tail->next_lock = exp;
+                    //trx_table.trx_map[exp->trx_id].tail = exp;
 
-                    //exp->next_lock = trx_table.trx_map[exp->trx_id].head;
-                    //trx_table.trx_map[exp->trx_id].head = exp;
+                    exp->next_lock = trx_table.trx_map[exp->trx_id].head;
+                    trx_table.trx_map[exp->trx_id].head = exp;
                     //need to be changed because this just attatch explict lock to the head of trx lock list.
                 }
 
@@ -465,7 +465,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
 
             //printf("trx_table_latch release\n");
                 result = pthread_mutex_unlock(&trx_table_latch);
-                if(result != 0) return 0;
+                if(result != 0) return -1;
 
             }
             else {
@@ -476,7 +476,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
 
             //printf("trx_table_latch release\n");
                     result = pthread_mutex_unlock(&trx_table_latch);
-                    if(result != 0) return 0;
+                    if(result != 0) return -1;
                 } 
                 else{
         //printf("dbg8\n");
@@ -487,14 +487,14 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
 
             //printf("trx_table_latch release\n");
                     result = pthread_mutex_unlock(&trx_table_latch);
-                    if(result != 0) return 0;
+                    if(result != 0) return -1;
 
                     buf_unpin(table_id, leaf.pn);
 
                     result = pthread_mutex_unlock(&lock_table_latch); 
-                    if(result!=0) return nullptr;
+                    if(result!=0) return -1;
                     //need to be modified. need to return lock_obj pointer which is not nullptr
-                    return new lock_t;
+                    return 0;
 
                 }
 
@@ -521,7 +521,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
     lck->trx_id = trx_id;
     //lck->cond = PTHREAD_COND_INITIALIZER;
     result = pthread_cond_init(&(lck->cond), NULL);
-    if(result!=0) return nullptr;
+    if(result!=0) return -1;
 
     //connect lock object at the end of list
     bool is_immediate;
@@ -556,11 +556,11 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             //delete value;
 
             result = pthread_mutex_unlock(&lock_table_latch); 
-            if(result!=0) return nullptr;
+            if(result!=0) return -1;
             
             *add_undo_value = false;
 
-            return same_trx_lock_obj;
+            return 0;
         }
         else {
             if(lck->lock_mode == EXCLUSIVE){
@@ -593,11 +593,11 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                 lck->prev->next = nullptr; target->tail = lck->prev; delete lck; 
 
                 result = pthread_mutex_unlock(&lock_table_latch); 
-                if(result!=0) return nullptr;
+                if(result!=0) return -1;
 
                 *add_undo_value = false;
 
-                return same_trx_lock_obj;
+                return 0;
             }
         }
     }
@@ -643,9 +643,9 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                         delete lck; 
 
                         result = pthread_mutex_unlock(&lock_table_latch); 
-                        if(result!=0) return nullptr;
+                        if(result!=0) return -1;
 
-                        return nullptr;
+                        return -1;
                     }
                 }
                 else if(cursor->lock_mode==SHARED){
@@ -667,9 +667,9 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                             delete lck; 
 
                             result = pthread_mutex_unlock(&lock_table_latch); 
-                            if(result!=0) return nullptr;
+                            if(result!=0) return -1;
 
-                            return nullptr;
+                            return -1;
                         }
                         cursor = cursor->prev;             
                     }
@@ -678,7 +678,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                 trx_table.connect_lock_obj(trx_id, lck);
 
                 result = pthread_cond_wait(&lck->cond, &lock_table_latch);
-                if(result!=0) return nullptr;
+                if(result!=0) return -1;
             }
             else if(lck->lock_mode == SHARED){
                 bool is_deadlock = lock_acquire_deadlock_detection(cursor, trx_id);
@@ -691,16 +691,16 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
                     delete lck; 
 
                     result = pthread_mutex_unlock(&lock_table_latch); 
-                    if(result!=0) return nullptr;
+                    if(result!=0) return -1;
                     
-                    return nullptr;
+                    return -1;
                 }
 
                 //trx_table connection
                 trx_table.connect_lock_obj(trx_id, lck);
 
                 result = pthread_cond_wait(&lck->cond, &lock_table_latch);
-                if(result!=0) return nullptr;
+                if(result!=0) return -1;
             }
             
         }
@@ -717,10 +717,10 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
 
 
     result = pthread_mutex_unlock(&lock_table_latch); 
-    if(result!=0) return nullptr;
+    if(result!=0) return -1;
 
 
-    return lck;
+    return 0;
 };
 
 // wrapper function release_trx_lock_obj acquires lock table latch
@@ -860,8 +860,8 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, in
     buf_unpin(table_id, leaf.pn);
 
     bool dummy;
-    lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, SHARED, &dummy);        
-    if(lock_obj==nullptr){
+    int res = lock_acquire(table_id, leaf.pn, key, trx_id, SHARED, &dummy);        
+    if(res==-1){
         //printf("abort!");
         trx_table.abort_trx_lock_obj(trx_id);
         return -1;
@@ -897,8 +897,8 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     buf_unpin(table_id, leaf.pn);
 
     bool add_undo_value = true;
-    lock_t* lock_obj = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, &add_undo_value);        
-    if(lock_obj==nullptr){
+    int res = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, &add_undo_value);        
+    if(res==-1){
         //printf("abort! %d\n",trx_id);
         trx_table.abort_trx_lock_obj(trx_id);
         return -1;
