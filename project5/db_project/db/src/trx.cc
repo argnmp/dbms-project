@@ -535,6 +535,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
         target->tail = lck; 
     }
 
+
     //first check if trx already acquired lock. one or zero same trx lock_obj
     lock_t* same_trx_lock_obj = lck->prev;
     while(same_trx_lock_obj != nullptr){
