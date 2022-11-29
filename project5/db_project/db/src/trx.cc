@@ -490,8 +490,6 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                     result = pthread_mutex_unlock(&trx_table_latch);
                     if(result != 0) return -1;
 
-                    buf_unpin(table_id, leaf.pn);
-
                     result = pthread_mutex_unlock(&lock_table_latch); 
                     if(result!=0) return -1;
                     //need to be modified. need to return lock_obj pointer which is not nullptr
