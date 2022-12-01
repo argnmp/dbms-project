@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <limits.h>
 #include <pthread.h>
+#include <bitset>
 #include "file.h"
 #include "buffer.h"
 #include "dbpt.h"
@@ -84,6 +85,8 @@ struct hash_table_entry {
     int64_t page_id;
     lock_t* head;
     lock_t* tail;
+    unordered_map<int64_t, int> key_map;
+    unordered_map<int, int64_t> key_map_reverse;
 };
 
 struct lock_t {
@@ -95,7 +98,8 @@ struct lock_t {
     int64_t record_id;
     lock_t* next_lock;
     int trx_id;
-    unordered_set<int64_t> key_set;
+    //unordered_set<int64_t> key_set;
+    bitset<50> key_set;
 };
 
 

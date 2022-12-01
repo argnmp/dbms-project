@@ -67,7 +67,7 @@ int TRX_Table::connect_lock_obj(int trx_id, lock_t* lock_obj){
 TRX_Table trx_table;
 
 int TRX_Table::release_trx_lock_obj(int trx_id){
-    printf("release sequence start\n");
+   //printf("release sequence start\n");
     int result;
     result = pthread_mutex_lock(&trx_table_latch); 
     if(result != 0) return 0;
@@ -236,11 +236,12 @@ bool lock_acquire_deadlock_detection(lock_t* dependency, int trx_id){
         return true;
     }
 
+    int dependency_key_bit = dependency->sentinel->key_map[dependency->record_id];
     lock_t* cursor = dependency->prev;
     while(cursor != nullptr){
         //printf("cursor looping,finding dependency: %d\n",debug_int++);
         //printf("debug_count lock_acquire %d\n", debug_count++);
-        if(cursor->record_id != dependency->record_id && cursor->key_set.find(dependency->record_id) == cursor->key_set.end()){
+        if(cursor->record_id != dependency->record_id && !cursor->key_set.test(dependency_key_bit)){
             cursor = cursor -> prev;
             continue;
         }
@@ -266,7 +267,7 @@ bool lock_acquire_deadlock_detection(lock_t* dependency, int trx_id){
                 //deadlock check
                 while(cursor!=nullptr){
         //printf("cursor looping: %d\n",debug_int++);
-                    if(cursor->record_id != dependency->record_id && cursor->key_set.find(dependency->record_id) == cursor->key_set.end()){
+                    if(cursor->record_id != dependency->record_id && !cursor->key_set.test(dependency_key_bit)){
                         cursor = cursor -> prev;
                         continue;
                     }
@@ -336,9 +337,24 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
         hte.page_id = page_id;
         hte.head = nullptr;
         hte.tail = nullptr;
+        //store all keys in the leaf
+        Node leaf(table_id, page_id);
+        for(int i = 0; i<leaf.leaf_ptr->number_of_keys; i++){
+            slot_t tmp;
+            memcpy(&tmp.data, leaf.leaf_ptr->data + i*SLOT_SIZE, sizeof(tmp.data)); 
+            hte.key_map.insert({tmp.get_key(), i});
+            hte.key_map_reverse.insert({i, tmp.get_key()});
+        }   
+        buf_unpin(table_id, leaf.pn);
+
         hash_table.insert({{table_id, page_id}, hte}); 
+
+
     }
     hash_table_entry* target = &hash_table[{table_id, page_id}]; 
+
+    
+    int key_bit = target->key_map[key]; 
 
     /*
      * implicit lock sequence start
@@ -354,7 +370,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             }
         }
         else if (same_record_lock_obj->lock_mode == SHARED){
-            if(same_record_lock_obj->record_id != key && same_record_lock_obj->key_set.find(key) == same_record_lock_obj->key_set.end()){
+            if(same_record_lock_obj->record_id != key && !same_record_lock_obj->key_set.test(key_bit)){
                 same_record_lock_obj = same_record_lock_obj -> prev;
                 continue;
             }
@@ -513,6 +529,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     lck->record_id = key;
     lck->next_lock = nullptr;
     lck->trx_id = trx_id;
+    lck->key_set.set(lck->sentinel->key_map[key], true);
     //lck->cond = PTHREAD_COND_INITIALIZER;
     result = pthread_cond_init(&(lck->cond), NULL);
     if(result!=0) return -1;
@@ -535,7 +552,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     lock_t* same_trx_lock_obj = lck->prev;
     while(same_trx_lock_obj != nullptr){
         //printf("debug_count lock_acquire %d\n", debug_count++);
-        if(same_trx_lock_obj->record_id != key && same_trx_lock_obj->key_set.find(key) == same_trx_lock_obj->key_set.end()){
+        if(same_trx_lock_obj->record_id != key && !same_trx_lock_obj->key_set.test(key_bit)){
             same_trx_lock_obj = same_trx_lock_obj -> prev;
             continue;
         }
@@ -559,7 +576,8 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
         }
         else {
             if(lck->lock_mode == EXCLUSIVE){
-                if(same_trx_lock_obj->key_set.size()==0){
+                same_trx_lock_obj->key_set.set(key_bit, false);
+                if(same_trx_lock_obj->key_set.none()){
                     lock_detach(target, same_trx_lock_obj); 
                     same_trx_lock_obj->lock_mode = EXCLUSIVE;
 
@@ -584,13 +602,6 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                     *add_undo_value = true;
                 }
                 else {
-                    if(same_trx_lock_obj->record_id == key){
-                        same_trx_lock_obj->record_id = *same_trx_lock_obj->key_set.begin(); 
-                        same_trx_lock_obj->key_set.erase(same_trx_lock_obj->key_set.begin());
-                    } 
-                    else {
-                        same_trx_lock_obj->key_set.erase(key);
-                    }
 
                 }
                 //do not return for further processing
@@ -615,7 +626,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
 
         while(cursor != nullptr){
             //printf("debug_count lock_acquire %d\n", debug_count++);
-            if(cursor->record_id != key && cursor->key_set.find(key) == cursor->key_set.end()){
+            if(cursor->record_id != key && !cursor->key_set.test(key_bit)){
                 if(cursor->lock_mode == SHARED && cursor->trx_id == trx_id){
                     shared_same_trx_lock_obj = cursor;
                 }
@@ -656,7 +667,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 }
                 else if(cursor->lock_mode==SHARED){
                     while(cursor!=nullptr){
-                        if(cursor->record_id != key && cursor->key_set.find(key) == cursor->key_set.end()){
+                        if(cursor->record_id != key && !cursor->key_set.test(key_bit)){
                             cursor = cursor -> prev;
                             continue;
                         }
@@ -711,6 +722,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             
         }
         else if(lck->lock_mode == SHARED && shared_same_trx_lock_obj != nullptr){
+           //printf("lock compression!\n");
             //no dependency
 
             /*
@@ -722,7 +734,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             // detach lck, delete lck, and push key to shared_same_trx_lock_obj
             lock_detach(target, lck);
             delete lck;
-            shared_same_trx_lock_obj->key_set.insert(lck->record_id);
+            shared_same_trx_lock_obj->key_set.set(key_bit, true);
             
         }
         else {
@@ -767,63 +779,63 @@ int lock_release(lock_t* lock_obj) {
     else {
         //this is the case that lock objects are more than 2
         if(lock_obj->lock_mode == SHARED){
-            unordered_set<int64_t> checklist = lock_obj->key_set;
-            checklist.insert(lock_obj->record_id);
 
-            for(int64_t key_target: checklist){
+            for(int i = 0; i<lock_obj->sentinel->key_map.size(); i++){
+                if(!lock_obj->key_set.test(i)){
+                    int slock_count = 0;
+                    bool is_xlock_on_right_side = false;
+                    lock_t* xlock_cursor = lock_obj->next;
 
-                int slock_count = 0;
-                bool is_xlock_on_right_side = false;
-                lock_t* xlock_cursor = lock_obj->next;
-
-
-                //no need to check slock
-                while(xlock_cursor != nullptr){
-                    //printf("debug_count on shared%d\n", debug_count++);
-                    if(xlock_cursor->record_id != key_target && xlock_cursor->key_set.find(key_target)==xlock_cursor->key_set.end()) {
-                        xlock_cursor = xlock_cursor->next;
-                        continue;
-                    }
-                    if(xlock_cursor->lock_mode == EXCLUSIVE){
-                        is_xlock_on_right_side = true;
-                        break;
-                    }
-                    slock_count += 1;
-                    xlock_cursor = xlock_cursor->next;
-                } 
-
-                if(is_xlock_on_right_side == true){
-                    //printf("rightside xlock case\n");
-                    lock_t* cursor = lock_obj->prev;
-                    while(cursor != nullptr){
-                        //this search shared slock from other trx
-                        if(cursor->record_id != key_target && cursor->key_set.find(key_target)==cursor->key_set.end()){
-                            cursor = cursor->prev;
+                    int64_t key_target = lock_obj->sentinel->key_map_reverse[i];
+                    //no need to check slock
+                    while(xlock_cursor != nullptr){
+                        //printf("debug_count on shared%d\n", debug_count++);
+                        if(xlock_cursor->record_id != key_target && !xlock_cursor->key_set.test(i)) {
+                            xlock_cursor = xlock_cursor->next;
                             continue;
                         }
-                        //this is not needed because release is occured in lock acquired status
-                        if(cursor->lock_mode == EXCLUSIVE){
+                        if(xlock_cursor->lock_mode == EXCLUSIVE){
+                            is_xlock_on_right_side = true;
                             break;
                         }
                         slock_count += 1;
-                        cursor = cursor->prev;
+                        xlock_cursor = xlock_cursor->next;
                     } 
 
+                    if(is_xlock_on_right_side == true){
+                        //printf("rightside xlock case\n");
+                        lock_t* cursor = lock_obj->prev;
+                        while(cursor != nullptr){
+                            //this search shared slock from other trx
+                            if(cursor->record_id != key_target && !cursor->key_set.test(i)){
+                                cursor = cursor->prev;
+                                continue;
+                            }
+                            //this is not needed because release is occured in lock acquired status
+                            if(cursor->lock_mode == EXCLUSIVE){
+                                break;
+                            }
+                            slock_count += 1;
+                            cursor = cursor->prev;
+                        } 
 
-                    if(slock_count > 0){
-                        //just release
+
+                        if(slock_count > 0){
+                            //just release
+                        }
+                        else {
+                            //signal xlock
+                            //printf("signal xlock!\n");
+                            result = pthread_cond_signal(&xlock_cursor->cond);
+                            if(result!=0) return -1;
+                        }
                     }
-                    else {
-                        //signal xlock
-                        //printf("signal xlock!\n");
-                        result = pthread_cond_signal(&xlock_cursor->cond);
-                        if(result!=0) return -1;
-                    }
+
                 }
 
             }
             lock_detach(target, lock_obj);
-            
+
 
         }
         else if(lock_obj->lock_mode == EXCLUSIVE){
