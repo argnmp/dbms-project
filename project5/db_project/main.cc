@@ -437,7 +437,7 @@ int main(){
     }
 
     int finder_num = 100;
-    int updater_num = 0;
+    int updater_num = 100;
 
     pthread_t finder[finder_num];
     pthread_t updater[updater_num];

@@ -109,7 +109,7 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
     return trx_id; 
 }
 int TRX_Table::abort_trx_lock_obj(int trx_id){
-    printf("abort sequence start\n");
+    //printf("abort sequence start\n");
     int result;
     result = pthread_mutex_lock(&trx_table_latch); 
     if(result != 0) return 0;
@@ -781,7 +781,7 @@ int lock_release(lock_t* lock_obj) {
         if(lock_obj->lock_mode == SHARED){
 
             for(int i = 0; i<lock_obj->sentinel->key_map.size(); i++){
-                if(!lock_obj->key_set.test(i)){
+                if(lock_obj->key_set.test(i)){
                     int slock_count = 0;
                     bool is_xlock_on_right_side = false;
                     lock_t* xlock_cursor = lock_obj->next;
