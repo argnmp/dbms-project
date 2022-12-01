@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <limits.h>
 #include <pthread.h>
 #include "file.h"
@@ -94,6 +95,7 @@ struct lock_t {
     int64_t record_id;
     lock_t* next_lock;
     int trx_id;
+    unordered_set<int64_t> key_set;
 };
 
 
