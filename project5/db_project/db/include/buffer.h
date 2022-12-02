@@ -16,7 +16,7 @@ struct buf_block_t{
     pagenum_t pagenum; 
     int is_dirty;
     //int is_pinned;
-    pthread_rwlock_t page_latch;
+    pthread_mutex_t page_latch;
     frame_t* frame;  
     buf_block_t* next;
     buf_block_t* prev;
@@ -52,7 +52,7 @@ int64_t buf_open_table_file(const char* pathname);
 
 //0: success, -1: failed
 int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest);
-pagenum_t buf_alloc_page(int64_t table_id, bool isLeaf);
+pagenum_t buf_alloc_page(int64_t table_id);
 int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src);
 void buf_free_page(int64_t table_id, pagenum_t pagenum);
 //0: success, -1: {table_id, pagenum} not in the buffer.
