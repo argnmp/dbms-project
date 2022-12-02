@@ -410,27 +410,6 @@ int main(){
     table_id = open_table(pathname.c_str()); 
     init_db(1000);
 
-
-    /*
-    vector<int> insert_keys;
-    vector<int> delete_keys;
-
-    ifstream insert_keys_s("../../test/insert_keys_100000.txt");
-    ifstream delete_keys_s("../../test/delete_keys_100000.txt");
-    int elem;
-    while(insert_keys_s >> elem){
-        insert_keys.push_back(elem);
-    }
-    while(delete_keys_s >> elem){
-        delete_keys.push_back(elem);
-    }
-
-    for(auto i: insert_keys){
-        //string value = "thisisvalue" + to_string(i);
-        string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + to_string(i);
-        int result = db_insert(table_id, i, value.c_str(), value.length());
-    }
-    */
     for(int i = 1; i<=10000; i++){
         string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
