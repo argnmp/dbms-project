@@ -14,7 +14,7 @@ pair<int64_t, pagenum_t> key_to_tidpn(buf_key_t key){
 
 buf_block_t* alloc_buf_block_t(bool create_frame, int64_t tid, pagenum_t pn){
     buf_block_t* ctrl_block = (buf_block_t*)malloc(sizeof(buf_block_t));
-    ctrl_block->page_latch = PTHREAD_MUTEX_INITIALIZER;
+    pthread_rwlock_init(&ctrl_block->page_latch, NULL);
     if(create_frame){
         ctrl_block->frame = (frame_t*)malloc(sizeof(frame_t)); 
         ctrl_block->is_dirty = 0;
@@ -100,12 +100,18 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         Buffer.remove_frame(target);
         Buffer.add_frame_front(target);
 
-
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
 
-        result = pthread_mutex_lock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
-        if(result != 0) return -1;
+        if(dest->is_leaf){
+            result = pthread_rwlock_wrlock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
+            if(result != 0) return -1;
+        }
+        else{
+            result = pthread_rwlock_rdlock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
+            if(result != 0) return -1;
+
+        }
 
         return 0;      
     }
@@ -130,8 +136,14 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
 
-        result = pthread_mutex_lock(&new_buf_block->page_latch);
-        if(result != 0) return -1;
+        if(dest->is_leaf){
+            result = pthread_rwlock_wrlock(&new_buf_block->page_latch);
+            if(result != 0) return -1;
+        }
+        else {
+            result = pthread_rwlock_rdlock(&new_buf_block->page_latch);
+            if(result != 0) return -1;
+        }
 
         return 0;
     } 
@@ -159,7 +171,7 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
             break; 
         }
         */
-        if(pthread_mutex_trylock(&cur->page_latch)==0){
+        if(pthread_rwlock_trywrlock(&cur->page_latch)==0){
             break;
         }
         cur = cur->prev;
@@ -197,17 +209,26 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     
     //printf("Buf Eviction END!!\n");
 
+    //chage lock type
+    pthread_rwlock_unlock(&cur->page_latch);
+    if(dest->is_leaf){
+        result = pthread_rwlock_wrlock(&cur->page_latch);
+        if(result != 0) return -1;
+    }
+    else {
+        result = pthread_rwlock_rdlock(&cur->page_latch);
+        if(result != 0) return -1;
+
+    }
 
     result = pthread_mutex_unlock(&buffer_latch);
     if(result != 0) return -1;
 
     return 0;
 }
-int alloc_frame(int64_t table_id, pagenum_t pagenum){
-}
 
 // think about buffer_latch again
-pagenum_t buf_alloc_page(int64_t table_id){
+pagenum_t buf_alloc_page(int64_t table_id, bool isLeaf){
 
     //printf("buf_alloc_page\n");
 
@@ -300,8 +321,14 @@ pagenum_t buf_alloc_page(int64_t table_id){
         pthread_flag = pthread_mutex_unlock(&buffer_latch);
         if(pthread_flag != 0) return -1;
 
-        pthread_flag = pthread_mutex_lock(&new_buf_block->page_latch);
-        if(pthread_flag != 0) return -1; 
+        if(isLeaf){
+            pthread_flag = pthread_rwlock_wrlock(&new_buf_block->page_latch);
+            if(pthread_flag != 0) return -1; 
+        }
+        else {
+            pthread_flag = pthread_rwlock_rdlock(&new_buf_block->page_latch);
+            if(pthread_flag != 0) return -1; 
+        }
     } 
     else {
         if(Buffer.frame_total < Buffer.frame_in_use){
@@ -330,7 +357,7 @@ pagenum_t buf_alloc_page(int64_t table_id){
                 break; 
             }
             */
-            if(pthread_mutex_trylock(&cur->page_latch)==0){
+            if(pthread_rwlock_trywrlock(&cur->page_latch)==0){
                 break;
             }
             cur = cur->prev;
@@ -361,6 +388,19 @@ pagenum_t buf_alloc_page(int64_t table_id){
 
         // update Buffer
         Buffer.add_frame_front(cur);
+        
+        //change lock type
+        int result;
+        pthread_rwlock_unlock(&cur->page_latch);
+        if(isLeaf){
+            result = pthread_rwlock_wrlock(&cur->page_latch);
+            if(result != 0) return -1;
+        }
+        else {
+            result = pthread_rwlock_rdlock(&cur->page_latch);
+            if(result != 0) return -1;
+
+        }
 
         pthread_flag = pthread_mutex_unlock(&buffer_latch);
         if(pthread_flag != 0) return -1;
@@ -445,7 +485,7 @@ int buf_unpin(int64_t table_id, pagenum_t pagenum){
 
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
         //Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_pinned -= 1;
-        pthread_mutex_unlock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
+        pthread_rwlock_unlock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
 
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
