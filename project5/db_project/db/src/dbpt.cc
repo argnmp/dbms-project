@@ -118,7 +118,7 @@ pagenum_t Node::write_to_disk(){
     }
     else {
         //printf("before alloc");
-        pagenum_t pagenum = buf_alloc_page(tid, default_page.is_leaf);
+        pagenum_t pagenum = buf_alloc_page(tid);
         //printf("after alloc");
         buf_write_page(tid, pagenum, &default_page);
         //printf("allocated: %d\n",pagenum); 
