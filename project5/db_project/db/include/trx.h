@@ -99,7 +99,7 @@ struct lock_t {
     lock_t* next_lock;
     int trx_id;
     //unordered_set<int64_t> key_set;
-    bitset<50> key_set;
+    bitset<300> key_set;
 };
 
 

@@ -342,7 +342,7 @@ int main()
 
 #endif
 
-#define buffer_test 123
+//#define buffer_test 123
 #ifdef buffer_test
 
 #include "dbpt.h"
@@ -689,7 +689,7 @@ int main()
 }
 #endif
 
-//#define single_thread_test 100
+#define single_thread_test 100
 #ifdef single_thread_test
 #include "trx.h"
 #include "db.h"
@@ -705,23 +705,24 @@ int result;
 
 void test(){
     int trx_id = trx_begin();
+    int trx_id2 = trx_begin();
     //printf("trx_id: %d\n",trx_id);
     char ret_val[130];
     uint16_t val_size;
     string new_val = to_string(trx_id);
     uint16_t old_val_size;
     
-    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id ); 
-    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id ); 
     result = db_find(table_id, 1000, ret_val, &val_size, trx_id); 
+    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id2 ); 
+    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id); 
     /*
     for(int i = 0; i<val_size; i++){
         printf("%c",ret_val[i]);
     }
     printf("\n");
     */
-
     result = trx_commit(trx_id);
+    result = trx_commit(trx_id2);
     //printf("result: %d\n",result);
 
 }
