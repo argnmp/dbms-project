@@ -575,8 +575,63 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             return 0;
         }
         else {
+
             if(lck->lock_mode == EXCLUSIVE){
                 same_trx_lock_obj->key_set.set(key_bit, false);
+
+                int slock_count = 0;
+                bool is_xlock_on_right_side = false;
+                lock_t* xlock_cursor = same_trx_lock_obj->next;
+
+                int64_t key_target = target->key_map_reverse[key_bit];
+                //no need to check slock
+                while(xlock_cursor != nullptr){
+                    //printf("debug_count on shared%d\n", debug_count++);
+                    if(xlock_cursor->record_id != key_target && !xlock_cursor->key_set.test(key_bit)) {
+                        xlock_cursor = xlock_cursor->next;
+                        continue;
+                    }
+                    if(xlock_cursor==lck){
+                        is_xlock_on_right_side = false;
+                        break;
+                    }
+                    if(xlock_cursor->lock_mode == EXCLUSIVE){
+                        is_xlock_on_right_side = true;
+                        break;
+                    }
+                    slock_count += 1;
+                    xlock_cursor = xlock_cursor->next;
+                } 
+                if(is_xlock_on_right_side == true){
+                    //printf("rightside xlock case\n");
+                    lock_t* cursor = same_trx_lock_obj->prev;
+                    while(cursor != nullptr){
+                        //this search shared slock from other trx
+                        if(cursor->record_id != key_target && !cursor->key_set.test(key_bit)){
+                            cursor = cursor->prev;
+                            continue;
+                        }
+                        //this is not needed because release is occured in lock acquired status
+                        if(cursor->lock_mode == EXCLUSIVE){
+                            break;
+                        }
+                        slock_count += 1;
+                        cursor = cursor->prev;
+                    } 
+
+
+                    if(slock_count > 0){
+                        //just release
+                    }
+                    else {
+                        //signal xlock
+                        //printf("signal xlock!\n");
+                        result = pthread_cond_signal(&xlock_cursor->cond);
+                        if(result!=0) return -1;
+                    }
+                }
+
+
                 if(same_trx_lock_obj->key_set.none()){
                     lock_detach(target, same_trx_lock_obj); 
                     same_trx_lock_obj->lock_mode = EXCLUSIVE;
