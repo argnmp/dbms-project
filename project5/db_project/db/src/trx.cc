@@ -433,6 +433,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 exp->sentinel = &hash_table[{table_id, page_id}];
                 exp->lock_mode = EXCLUSIVE;
                 exp->record_id = slot.get_key();
+                exp->key_set.set(key_bit, true);
                 exp->next_lock = nullptr;
                 exp->trx_id = slot.get_trx();
                 result = pthread_cond_init(&(exp->cond), NULL);
