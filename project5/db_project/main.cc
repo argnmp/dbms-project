@@ -703,9 +703,30 @@ int main()
 int64_t table_id;
 int result;
 
-void test(){
+void* t1(void* args){
     int trx_id = trx_begin();
-    int trx_id2 = trx_begin();
+    //printf("trx_id: %d\n",trx_id);
+    char ret_val[130];
+    uint16_t val_size;
+    string new_val = to_string(trx_id);
+    uint16_t old_val_size;
+    
+    sleep(1);
+    result = db_find(table_id, 1000, ret_val, &val_size, trx_id); 
+    sleep(2);
+    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id); 
+    printf("result: %d\n",result);
+    result = db_find(table_id, 1000, ret_val, &val_size, trx_id); 
+    for(int i = 0; i<val_size; i++){
+        printf("%c",ret_val[i]);
+    }
+    printf("\n");
+    result = trx_commit(trx_id);
+    //printf("result: %d\n",result);
+
+}
+void* t2(void* args){
+    int trx_id = trx_begin();
     //printf("trx_id: %d\n",trx_id);
     char ret_val[130];
     uint16_t val_size;
@@ -713,16 +734,14 @@ void test(){
     uint16_t old_val_size;
     
     result = db_find(table_id, 1000, ret_val, &val_size, trx_id); 
-    result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id2 ); 
+    sleep(2);
     result = db_update(table_id, 1000, (char*)new_val.c_str(), new_val.length(), &old_val_size, trx_id); 
-    /*
+    printf("result: %d\n",result);
     for(int i = 0; i<val_size; i++){
         printf("%c",ret_val[i]);
     }
     printf("\n");
-    */
     result = trx_commit(trx_id);
-    result = trx_commit(trx_id2);
     //printf("result: %d\n",result);
 
 }
@@ -736,9 +755,24 @@ int main(){
         string value = to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
-    for(int i = 0; i<1000; i++){
-        test();
+    int finder_num = 1;
+    int updater_num = 1;
+
+    pthread_t finder[finder_num];
+    pthread_t updater[updater_num];
+
+    for(int i = 0; i<finder_num; i++){
+        pthread_create(&finder[i], 0, t1, NULL);
     }
+    for(int i = 0; i<updater_num; i++){
+        pthread_create(&updater[i], 0, t2, NULL);
+    }
+	for (int i = 0; i < finder_num; i++) {
+		pthread_join(finder[i], NULL);
+	}
+	for (int i = 0; i < updater_num; i++) {
+		pthread_join(updater[i], NULL);
+	}
 
     shutdown_db();
 }

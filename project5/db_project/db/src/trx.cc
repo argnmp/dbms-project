@@ -678,14 +678,16 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     if(!is_immediate){
         lock_t* cursor = lck->prev;
 
-        lock_t* shared_same_trx_lock_obj = nullptr;
+        lock_t* shared_same_trx_lock_obj = lck->prev;
 
         while(cursor != nullptr){
             //printf("debug_count lock_acquire %d\n", debug_count++);
             if(cursor->record_id != key && !cursor->key_set.test(key_bit)){
+                /*
                 if(cursor->lock_mode == SHARED && cursor->trx_id == trx_id){
                     shared_same_trx_lock_obj = cursor;
                 }
+                */
                 cursor = cursor -> prev;
                 continue;
             }
@@ -699,6 +701,12 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 }     
             }
             cursor = cursor -> prev;
+        }
+        while(shared_same_trx_lock_obj != nullptr){
+            if(!(shared_same_trx_lock_obj->lock_mode==SHARED && shared_same_trx_lock_obj->trx_id == trx_id)){
+                shared_same_trx_lock_obj = shared_same_trx_lock_obj -> prev;
+                continue; 
+            }
         }
 
 
