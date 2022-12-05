@@ -85,6 +85,9 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
 
     trx_table.trx_map.erase(trx_id);
 
+    result = pthread_mutex_unlock(&trx_table_latch);
+    if(result != 0) return 0;
+
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
 
@@ -94,19 +97,15 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
         cursor = next;
     }
 
+    result = pthread_mutex_unlock(&lock_table_latch); 
+    if(result!=0) return 0;
 
     while(!restored_queue.empty()){
         auto i = restored_queue.front();
         restored_queue.pop();
         delete i.first;
     }
-
-    result = pthread_mutex_unlock(&lock_table_latch); 
-    if(result!=0) return 0;
     
-    result = pthread_mutex_unlock(&trx_table_latch);
-    if(result != 0) return 0;
-
     return trx_id; 
 }
 int TRX_Table::abort_trx_lock_obj(int trx_id){
@@ -127,6 +126,9 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     queue<pair<char*, uint16_t>> restored_queue = trx_map[trx_id].undo_values;
 
     trx_table.trx_map.erase(trx_id);
+
+    result = pthread_mutex_unlock(&trx_table_latch);
+    if(result != 0) return 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
@@ -161,10 +163,6 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
 
     result = pthread_mutex_unlock(&lock_table_latch); 
     if(result!=0) return 0;
-
-    result = pthread_mutex_unlock(&trx_table_latch);
-    if(result != 0) return 0;
-
     
     return trx_id; 
 }
@@ -410,7 +408,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
         //printf("dbg3\n");
             buf_unpin(table_id, leaf.pn);
 
-            //*add_undo_value = false;
+            *add_undo_value = false;
 
             result = pthread_mutex_unlock(&lock_table_latch); 
             if(result!=0) return -1;
