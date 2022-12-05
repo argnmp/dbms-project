@@ -85,9 +85,6 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
 
     trx_table.trx_map.erase(trx_id);
 
-    result = pthread_mutex_unlock(&trx_table_latch);
-    if(result != 0) return 0;
-
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
 
@@ -97,15 +94,19 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
         cursor = next;
     }
 
-    result = pthread_mutex_unlock(&lock_table_latch); 
-    if(result!=0) return 0;
 
     while(!restored_queue.empty()){
         auto i = restored_queue.front();
         restored_queue.pop();
         delete i.first;
     }
+
+    result = pthread_mutex_unlock(&lock_table_latch); 
+    if(result!=0) return 0;
     
+    result = pthread_mutex_unlock(&trx_table_latch);
+    if(result != 0) return 0;
+
     return trx_id; 
 }
 int TRX_Table::abort_trx_lock_obj(int trx_id){
@@ -126,9 +127,6 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     queue<pair<char*, uint16_t>> restored_queue = trx_map[trx_id].undo_values;
 
     trx_table.trx_map.erase(trx_id);
-
-    result = pthread_mutex_unlock(&trx_table_latch);
-    if(result != 0) return 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
@@ -163,6 +161,10 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
 
     result = pthread_mutex_unlock(&lock_table_latch); 
     if(result!=0) return 0;
+
+    result = pthread_mutex_unlock(&trx_table_latch);
+    if(result != 0) return 0;
+
     
     return trx_id; 
 }
@@ -408,7 +410,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
         //printf("dbg3\n");
             buf_unpin(table_id, leaf.pn);
 
-            *add_undo_value = false;
+            //*add_undo_value = false;
 
             result = pthread_mutex_unlock(&lock_table_latch); 
             if(result!=0) return -1;
@@ -678,16 +680,14 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     if(!is_immediate){
         lock_t* cursor = lck->prev;
 
-        lock_t* shared_same_trx_lock_obj = lck->prev;
+        lock_t* shared_same_trx_lock_obj = nullptr;
 
         while(cursor != nullptr){
             //printf("debug_count lock_acquire %d\n", debug_count++);
             if(cursor->record_id != key && !cursor->key_set.test(key_bit)){
-                /*
                 if(cursor->lock_mode == SHARED && cursor->trx_id == trx_id){
                     shared_same_trx_lock_obj = cursor;
                 }
-                */
                 cursor = cursor -> prev;
                 continue;
             }
@@ -701,12 +701,6 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 }     
             }
             cursor = cursor -> prev;
-        }
-        while(shared_same_trx_lock_obj != nullptr){
-            if(!(shared_same_trx_lock_obj->lock_mode==SHARED && shared_same_trx_lock_obj->trx_id == trx_id)){
-                shared_same_trx_lock_obj = shared_same_trx_lock_obj -> prev;
-                continue; 
-            }
         }
 
 
