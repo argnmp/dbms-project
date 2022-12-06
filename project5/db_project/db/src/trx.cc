@@ -907,7 +907,7 @@ int lock_release(lock_t* lock_obj) {
             lock_t* cursor = lock_obj->next;
             bool is_slock_acquired = false;
             while(cursor!=nullptr){
-                if(cursor->record_id != lock_obj->record_id && !cursor->key_set.test(lock_obj->sentinel->key_map_reverse[lock_obj->record_id])){
+                if(cursor->record_id != lock_obj->record_id){
                     cursor = cursor->next;
                     continue;
                 }
