@@ -11,7 +11,6 @@ pair<int64_t, pagenum_t> key_to_tidpn(buf_key_t key){
     return {key%100, key/100};
 }
 
-
 buf_block_t* alloc_buf_block_t(bool create_frame, int64_t tid, pagenum_t pn){
     buf_block_t* ctrl_block = (buf_block_t*)malloc(sizeof(buf_block_t));
     ctrl_block->page_latch = PTHREAD_MUTEX_INITIALIZER;
@@ -203,8 +202,6 @@ int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
 
     return 0;
 }
-int alloc_frame(int64_t table_id, pagenum_t pagenum){
-}
 
 // think about buffer_latch again
 pagenum_t buf_alloc_page(int64_t table_id){
@@ -218,32 +215,9 @@ pagenum_t buf_alloc_page(int64_t table_id){
     int cost = 0;
     pagenum_t allocated_pagenum;
 
-    /*
-    if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, 0}))!=Buffer.page_buf_block_map.end()){
-        h_page_t* target = (h_page_t*)(Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->frame);
-        if(target->free_page_number==0){
-            if(Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->is_dirty == 1){
-                //? pin unpin think
-                file_write_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->frame);
-                Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->is_dirty = 0;
-            }
-            allocated_pagenum = file_alloc_page(table_id); 
-            file_read_page(table_id, 0, (page_t*) Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->frame);
-        }
-        else {
-            f_page_t free_page_buf;
-            allocated_pagenum = target->free_page_number;
-            pread(fd_mapper(table_id), &free_page_buf, PAGE_SIZE, allocated_pagenum * PAGE_SIZE);
-
-            target->free_page_number = free_page_buf.next_free_page_number; 
-            Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->is_dirty = 1;
-        }
-    } else {
-        allocated_pagenum = file_alloc_page(table_id);
-    }
-    */
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, 0}))!=Buffer.page_buf_block_map.end()){
         //do not need to lock header page because project 5 does not edit internal pages.
+
         /*
         pthread_flag = pthread_mutex_lock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->page_latch);
         if(pthread_flag != 0) return -1;
@@ -374,28 +348,32 @@ pagenum_t buf_alloc_page(int64_t table_id){
 // think about pin count!! // this should be called only when the resource is allocated
 // think about synchronization, this function should be pending if other is using page.
 int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src){
-    //printf("buf_write_page tid: %d, pagenum: %d\n",table_id, pagenum);
 
     int result;
+    /*
     result = pthread_mutex_lock(&buffer_latch); 
     if(result != 0) return -1;
-    //printf("got mutex!");
+    */
 
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
         //printf("Cache hit should be occured");
         memcpy(Buffer.page_buf_block_map[tidpn_to_key({table_id,pagenum})]->frame, src, PAGE_SIZE);
         Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_dirty = 1;
 
+        /*
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
+        */
 
         return 0;      
     }
     else {
         //printf("This should not be the case!\n");
         
+        /*
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
+        */
 
         return -1;
     }
@@ -406,12 +384,10 @@ int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src
 // if the target page is on cache, delete it. if not, just call file_free_page
 // this should be called when the resource is allocated
 void buf_free_page(int64_t table_id, pagenum_t pagenum){
-    //printf("buf_free_page\n");
     int result;
     result = pthread_mutex_lock(&buffer_latch); 
 
     // do not need to lock header page or freed page because project 5 do not modify table structure.
-
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, 0}))!=Buffer.page_buf_block_map.end()){
         f_page_t free_page_buf;
         h_page_t* target = (h_page_t*)(Buffer.page_buf_block_map[tidpn_to_key({table_id, 0})]->frame);
@@ -437,45 +413,35 @@ void buf_free_page(int64_t table_id, pagenum_t pagenum){
 }
 
 int buf_unpin(int64_t table_id, pagenum_t pagenum){
-    //printf("buf_unpin\n");
-
     int result;
     result = pthread_mutex_lock(&buffer_latch); 
     if(result != 0) return -1;
 
     if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
-        //Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_pinned -= 1;
         pthread_mutex_unlock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch);
-
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
-
         return 0;
     }
 
     result = pthread_mutex_unlock(&buffer_latch);
     if(result != 0) return -1;
-    //printf("unpin failed\n");
     return -1;
 }
 
 // do not need to take buffer latch
 void fini_buffer(){
     buf_block_t* cur = Buffer.head->next;
-    //int count = 0;
     while(cur != Buffer.tail){
         if(cur->is_dirty==1){
             file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
             cur->is_dirty=0;
         }  
-        //printf("freeing : ctrl_block | tid: %ld, pn: %lu, pin_count: %d, is_dirty: %d, frame_ptr: %p\n", cur->table_id, cur->pagenum, cur->is_pinned, cur->is_dirty, cur->frame);
-        //count+=1;
         buf_block_t* nextptr = cur->next;
         free(cur->frame);
         free(cur);
         cur = nextptr;
     }
-    //printf("buffer usage: %d\n",count);
     free(Buffer.head);
     free(Buffer.tail);
 }

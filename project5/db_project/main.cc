@@ -342,7 +342,7 @@ int main()
 
 #endif
 
-//#define buffer_test 123
+#define buffer_test 123
 #ifdef buffer_test
 
 #include "dbpt.h"
@@ -689,7 +689,7 @@ int main()
 }
 #endif
 
-#define single_thread_test 100
+//#define single_thread_test 100
 #ifdef single_thread_test
 #include "trx.h"
 #include "db.h"
