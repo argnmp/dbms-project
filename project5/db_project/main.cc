@@ -411,6 +411,7 @@ int main(){
     init_db(1000);
 
     for(int i = 1; i<=10000; i++){
+        printf("inserting %d\n",i);
         string value = "thisisvalueaaaaaaa=a==a==++++aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
