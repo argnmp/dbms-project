@@ -84,132 +84,132 @@ int64_t buf_open_table_file(const char* pathname){
 int buf_read_page(int64_t table_id, pagenum_t pagenum, struct page_t* dest){
     //printf("buf_read_page tid: %d, pagenum: %d\n",table_id, pagenum);
 
-    int result;
-    result = pthread_mutex_lock(&buffer_latch); 
-    if(result != 0) return -1;
-    
-    //cache hit!
-    if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
-        //printf("Cache hit\n");
-        
-        //printf("dbg1\n");
-        memcpy(dest, Buffer.page_buf_block_map[tidpn_to_key({table_id,pagenum})]->frame, PAGE_SIZE);
-        //Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_pinned += 1;
-        buf_block_t* target = Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})];
-        Buffer.remove_frame(target);
-        Buffer.add_frame_front(target);
+    while(1){
 
-        while(1){
+        int result;
+        result = pthread_mutex_lock(&buffer_latch); 
+        if(result != 0) return -1;
+
+        //cache hit!
+        if(Buffer.page_buf_block_map.find(tidpn_to_key({table_id, pagenum}))!=Buffer.page_buf_block_map.end()){
+            //printf("Cache hit\n");
+
+            //printf("dbg1\n");
+            memcpy(dest, Buffer.page_buf_block_map[tidpn_to_key({table_id,pagenum})]->frame, PAGE_SIZE);
+            //Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->is_pinned += 1;
+            buf_block_t* target = Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})];
+            Buffer.remove_frame(target);
+            Buffer.add_frame_front(target);
+
             if(pthread_mutex_trylock(&Buffer.page_buf_block_map[tidpn_to_key({table_id, pagenum})]->page_latch)==0){
-                //printf("lock tid: %d, pagenum: %d\n",table_id, pagenum);
-                break;
-            }
-            else {
                 result = pthread_mutex_unlock(&buffer_latch);
                 if(result != 0) return -1;
+
+                return 0;      
+            }
+            else{
+                result = pthread_mutex_unlock(&buffer_latch);
+                if(result != 0) return -1;
+                
+                continue;
+
             }
 
-            result = pthread_mutex_lock(&buffer_latch);
-            if(result != 0) return -1;
         }
 
-        result = pthread_mutex_unlock(&buffer_latch);
-        if(result != 0) return -1;
-        return 0;      
-    }
-    
-    //Buffer is not full 
-    if(Buffer.frame_total > Buffer.frame_in_use){
-        //printf("Buf control block not full, so insert\n");
+        //Buffer is not full 
+        if(Buffer.frame_total > Buffer.frame_in_use){
+            //printf("Buf control block not full, so insert\n");
 
-        // new buf_block initialize
-        buf_block_t* new_buf_block = alloc_buf_block_t(true, table_id, pagenum); 
-        //new_buf_block->is_pinned += 1;
-        file_read_page(table_id, pagenum, (page_t*)new_buf_block->frame);
+            // new buf_block initialize
+            buf_block_t* new_buf_block = alloc_buf_block_t(true, table_id, pagenum); 
+            //new_buf_block->is_pinned += 1;
+            file_read_page(table_id, pagenum, (page_t*)new_buf_block->frame);
+
+            // return cached page
+            memcpy(dest, new_buf_block->frame, PAGE_SIZE);
+
+            // update Buffer 
+            Buffer.add_frame_front(new_buf_block); 
+            Buffer.frame_in_use++;
+            Buffer.page_buf_block_map.insert({tidpn_to_key({table_id, pagenum}),new_buf_block});
+
+            result = pthread_mutex_lock(&new_buf_block->page_latch);
+            if(result != 0) return -1;
+
+            result = pthread_mutex_unlock(&buffer_latch);
+            if(result != 0) return -1;
+
+            return 0;
+        } 
+        if(Buffer.frame_total < Buffer.frame_in_use){
+            //printf("Must not be occured case occured!\n");
+            result = pthread_mutex_unlock(&buffer_latch);
+            if(result != 0) return -1;
+
+            return -1;
+        } 
+
+        /*
+         * eviction phase
+         */
+        //printf("Buf Eviction\n");
+
+        // Buffer is full, evict the victim page, traversing from tail.
+        buf_block_t* cur = Buffer.tail->prev; 
+        // header frame has table id of -2
+        // select victim 
+        //printf("select victim start\n");
+        while(cur->table_id!=-2){
+            /*
+               if(cur->is_pinned == 0){
+               break; 
+               }
+               */
+            if(pthread_mutex_trylock(&cur->page_latch)==0){
+                break;
+            }
+            cur = cur->prev;
+        }
+        //printf("select victim end\n");
+        // cannot find victim
+        if(cur->table_id==-2){
+            //printf("ERROR: BUFFER is full and all frames are in use\n");
+
+            result = pthread_mutex_unlock(&buffer_latch);
+            if(result != 0) return -1;
+
+            return -1;
+        }
+        // evict the victim and load page from disk 
+        if(cur->is_dirty==1){
+            file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
+            cur->is_dirty=0;
+        } 
+        Buffer.remove_frame(cur);
+        //printf("find: %d\n", cur->pagenum);
+
+        //cur->is_pinned += 1;
+        file_read_page(table_id, pagenum, (page_t*)cur->frame);
+        Buffer.page_buf_block_map.erase(tidpn_to_key({cur->table_id, cur->pagenum}));
+        cur->table_id = table_id;
+        cur->pagenum = pagenum;
+        Buffer.page_buf_block_map.insert({tidpn_to_key({cur->table_id, cur->pagenum}), cur});
 
         // return cached page
-        memcpy(dest, new_buf_block->frame, PAGE_SIZE);
+        memcpy(dest, cur->frame, PAGE_SIZE);
 
-        // update Buffer 
-        Buffer.add_frame_front(new_buf_block); 
-        Buffer.frame_in_use++;
-        Buffer.page_buf_block_map.insert({tidpn_to_key({table_id, pagenum}),new_buf_block});
+        // update Buffer
+        Buffer.add_frame_front(cur);
 
-        result = pthread_mutex_lock(&new_buf_block->page_latch);
-        if(result != 0) return -1;
+        //printf("Buf Eviction END!!\n");
+
 
         result = pthread_mutex_unlock(&buffer_latch);
         if(result != 0) return -1;
 
         return 0;
-    } 
-    if(Buffer.frame_total < Buffer.frame_in_use){
-        //printf("Must not be occured case occured!\n");
-        result = pthread_mutex_unlock(&buffer_latch);
-        if(result != 0) return -1;
-
-        return -1;
-    } 
-
-    /*
-     * eviction phase
-     */
-    //printf("Buf Eviction\n");
-
-    // Buffer is full, evict the victim page, traversing from tail.
-    buf_block_t* cur = Buffer.tail->prev; 
-    // header frame has table id of -2
-    // select victim 
-    //printf("select victim start\n");
-    while(cur->table_id!=-2){
-        /*
-        if(cur->is_pinned == 0){
-            break; 
-        }
-        */
-        if(pthread_mutex_trylock(&cur->page_latch)==0){
-            break;
-        }
-        cur = cur->prev;
     }
-    //printf("select victim end\n");
-    // cannot find victim
-    if(cur->table_id==-2){
-        //printf("ERROR: BUFFER is full and all frames are in use\n");
-
-        result = pthread_mutex_unlock(&buffer_latch);
-        if(result != 0) return -1;
-
-        return -1;
-    }
-    // evict the victim and load page from disk 
-    if(cur->is_dirty==1){
-        file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
-        cur->is_dirty=0;
-    } 
-    Buffer.remove_frame(cur);
-    //printf("find: %d\n", cur->pagenum);
-
-    //cur->is_pinned += 1;
-    file_read_page(table_id, pagenum, (page_t*)cur->frame);
-    Buffer.page_buf_block_map.erase(tidpn_to_key({cur->table_id, cur->pagenum}));
-    cur->table_id = table_id;
-    cur->pagenum = pagenum;
-    Buffer.page_buf_block_map.insert({tidpn_to_key({cur->table_id, cur->pagenum}), cur});
-
-    // return cached page
-    memcpy(dest, cur->frame, PAGE_SIZE);
-
-    // update Buffer
-    Buffer.add_frame_front(cur);
-    
-    //printf("Buf Eviction END!!\n");
-
-
-    result = pthread_mutex_unlock(&buffer_latch);
-    if(result != 0) return -1;
-
-    return 0;
 }
 
 // think about buffer_latch again
