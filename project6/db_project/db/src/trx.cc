@@ -5,6 +5,20 @@
  */
 
 pthread_mutex_t trx_table_latch;
+void TRX_Table::acquire_tt_latch(){
+    int result = pthread_mutex_lock(&trx_table_latch); 
+    if(result != 0) {
+        perror("tt latch lock failed: ");
+        exit(EXIT_FAILURE);
+    }
+}
+void TRX_Table::release_tt_latch(){
+    int result = pthread_mutex_unlock(&trx_table_latch); 
+    if(result != 0) {
+        perror("tt latch unlock failed: ");
+        exit(EXIT_FAILURE);
+    }
+}
 
 int TRX_Table::create_entry(){
     int result;
@@ -18,6 +32,7 @@ int TRX_Table::create_entry(){
         g_trx_id += 1;
     }
     trx_map_entry_t tmet = {nullptr, nullptr};
+    tmet.last_lsn = 0;
     trx_map.insert({g_trx_id, tmet});
 
     int return_value = g_trx_id;
@@ -25,6 +40,8 @@ int TRX_Table::create_entry(){
     if(g_trx_id == INT_MAX){
         g_trx_id = 1;
     }
+
+    log_manager.write_lb_023(return_value, 0);
 
     result = pthread_mutex_unlock(&trx_table_latch);
     if(result != 0) return 0;
@@ -85,6 +102,8 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
 
     trx_table.trx_map.erase(trx_id);
 
+    log_manager.write_lb_023(trx_id, 2);
+
     result = pthread_mutex_unlock(&trx_table_latch);
     if(result != 0) return 0;
 
@@ -111,10 +130,7 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
 int TRX_Table::abort_trx_lock_obj(int trx_id){
     //printf("abort sequence start\n");
     int result;
-    result = pthread_mutex_lock(&trx_table_latch); 
-    if(result != 0) return 0;
-
-    //printf("release trx: %d\n",trx_id);
+    trx_table.acquire_tt_latch();
 
     // no entry exists
     if(trx_map.find(trx_id)==trx_map.end()){
@@ -125,10 +141,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     lock_t* cursor = trx_map[trx_id].head;
     queue<pair<char*, uint16_t>> restored_queue = trx_map[trx_id].undo_values;
 
-    trx_table.trx_map.erase(trx_id);
-
-    result = pthread_mutex_unlock(&trx_table_latch);
-    if(result != 0) return 0;
+    trx_table.release_tt_latch();
 
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
@@ -151,6 +164,13 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
         delete restored_item.first;
 
     }
+
+    trx_table.acquire_tt_latch();
+
+    log_manager.write_lb_023(trx_id, 3);
+    trx_table.trx_map.erase(trx_id);
+
+    trx_table.release_tt_latch();
 
     while(cursor != nullptr){
         //printf("record_id: %d\n",cursor->record_id);
@@ -321,7 +341,7 @@ void lock_detach(hash_table_entry* target, lock_t* lock_obj){
 
 //deadlock or inner error: -1, success: 0
 int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, bool* add_undo_value) {
-    //printf("trx_id: %d, lock_acquire\n",trx_id);
+    //printf("lock_acquire trx_id: %d\n",trx_id);
     int result = 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
@@ -815,7 +835,6 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     result = pthread_mutex_unlock(&lock_table_latch); 
     if(result!=0) return -1;
 
-
     return 0;
 };
 
@@ -982,7 +1001,7 @@ int db_find(int64_t table_id, int64_t key, char* ret_val, uint16_t* val_size, in
 
 // 0: success: non-zero: failed
 int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size, int trx_id){
-    //printf("trx_id: %d, db_update\n",trx_id);
+    //printf("db_update %d\n",trx_id);
     h_page_t header_node;
     buf_read_page(table_id, 0, (page_t*) &header_node);      
     buf_unpin(table_id, 0);
@@ -1000,7 +1019,9 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     buf_unpin(table_id, leaf.pn);
 
     bool add_undo_value = true;
+    //printf("before lock_acquire, trx_id: %d\n",trx_id);
     int res = lock_acquire(table_id, leaf.pn, key, trx_id, EXCLUSIVE, &add_undo_value);        
+    //printf("after lock_acquire, trx_id: %d\n",trx_id);
     if(res==-1){
         //printf("abort! %d\n",trx_id);
         trx_table.abort_trx_lock_obj(trx_id);
@@ -1011,11 +1032,12 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
     buf_unpin(table_id, 0);
 
     Node acquired_leaf = find_leaf(table_id, header_node.root_page_number, key);
-    if(add_undo_value){
+    //if(add_undo_value){
         char* ret_val  = new char[130];
         result = leaf.leaf_find(key, ret_val, old_val_size);
         trx_table.push_undo_value(trx_id, ret_val, *old_val_size);
-    }
+    //}
+    log_manager.write_lb_14(trx_id, 1, table_id, acquired_leaf.pn, 0, *old_val_size, (uint8_t*)ret_val, (uint8_t*)value, 0);
     
     acquired_leaf.leaf_update(key, value, new_val_size, old_val_size);
     acquired_leaf.write_to_disk(); 

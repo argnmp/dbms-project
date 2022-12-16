@@ -9,13 +9,15 @@
 #include <string.h>
 #include <cerrno>
 
-#define LOG_BUFFER_SIZE 4096
+
+#define LOG_BUFFER_SIZE 1000000000
 
 typedef struct log_buffer log_buffer;
 typedef struct log_record log_record;
 
 struct log_buffer{
     pthread_mutex_t log_buffer_latch;
+    uint64_t g_lsn;
     int next_offset;
     uint8_t data[LOG_BUFFER_SIZE];
 };
@@ -28,9 +30,17 @@ class LOG_MANAGER {
         
     public:
         int init_lm(char* log_path, char* logmsg_path);
+
+        // need for function that already acquired trx_table_latch
         void acquire_lb_latch();
         void release_lb_latch();
-        int write_lb_023(uint32_t type, uint32_t xid, uint64_t tid);
+
+        log_record init_log_record();
+
+        int write_lb_023(uint32_t xid, uint32_t type);
+        int write_lb_14(uint32_t xid, uint32_t type, uint64_t tid, uint64_t page_number, uint16_t offset, uint16_t data_length, uint8_t* old_image, uint8_t* new_image, uint64_t next_undo_lsn);
+
+        void show_lb_buffer();
 
 };
 
@@ -39,6 +49,7 @@ extern LOG_MANAGER log_manager;
 struct log_record {
     uint32_t log_size;
     uint64_t lsn;
+    // if prev_lsn == 0, it is first log record of the transaction
     uint64_t prev_lsn;
     uint32_t transaction_id;
     /*
@@ -46,7 +57,7 @@ struct log_record {
      * update: 1
      * commit: 2
      * rollback: 3
-     * compensate: 4,
+     * compensate: 4
      */
     uint32_t type;
     uint64_t table_id;

@@ -10,6 +10,7 @@
 #include "file.h"
 #include "buffer.h"
 #include "dbpt.h"
+#include "log.h"
 
 typedef struct lock_t lock_t;
 
@@ -20,11 +21,14 @@ struct trx_map_entry_t {
     lock_t* head;
     lock_t* tail;
     queue<pair<char*, uint16_t>> undo_values; 
+    uint64_t last_lsn;   
 };
 
 extern pthread_mutex_t trx_table_latch;    
 class TRX_Table {
 public:
+    void acquire_tt_latch();
+    void release_tt_latch();
     unordered_map<int, trx_map_entry_t> trx_map;    
     int g_trx_id = 1;
     
@@ -41,6 +45,7 @@ public:
     int push_undo_value(int trx_id, char* value, uint16_t old_val_size);
 };
 extern TRX_Table trx_table;
+
 
 int trx_begin();
 int trx_commit(int trx_id);
