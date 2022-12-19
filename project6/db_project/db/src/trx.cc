@@ -210,6 +210,7 @@ int trx_begin(){
     return trx_table.create_entry(); 
 }
 int trx_commit(int trx_id){
+    log_manager.flush_lb();
     return trx_table.release_trx_lock_obj(trx_id); 
 }
 
@@ -945,8 +946,8 @@ int lock_release(lock_t* lock_obj) {
             bool is_slock_acquired = false;
 
             while(cursor!=nullptr){
-                printf("check cursor nullptr %d\n",cursor == nullptr);
-                printf("777: cursor rid: %d, lockobj rid: %d\n",cursor->record_id, lock_obj->record_id);
+                //printf("check cursor nullptr %d\n",cursor == nullptr);
+                //printf("777: cursor rid: %d, lockobj rid: %d\n",cursor->record_id, lock_obj->record_id);
 
                 if(cursor->record_id != lock_obj->record_id){
                     cursor = cursor->next;

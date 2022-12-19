@@ -60,6 +60,7 @@ void* update_thread(void* arg){
         result = db_find(table_id, i, ret_val, &val_size, trx_id);
         string ret_value(ret_val+5, ret_val+val_size);
 
+
         int converted = stoi(ret_value);
         value += to_string(converted + 1);
         

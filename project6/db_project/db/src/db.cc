@@ -41,6 +41,7 @@ int init_db(int buf_num, int flag, int log_num, char* log_path, char* logmsg_pat
     g_result = init_buffer(buf_num);
     g_result = init_trx();
     g_result = log_manager.init_lm(log_path, logmsg_path);
+    log_manager.show_lb_buffer(); 
 
     return 0;
 }

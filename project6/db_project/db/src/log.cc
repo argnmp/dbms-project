@@ -16,15 +16,28 @@ int LOG_MANAGER::init_lm(char* log_path, char* logmsg_path){
     lb.g_lsn = 1;
     memset(lb.data, 0, sizeof(lb.data));
     
-    int log_fd = open(log_path, O_RDWR | O_SYNC );
+    log_record current_record;
+    log_fd = open(log_path, O_RDWR | O_SYNC );
     if(log_fd == -1){
         log_fd = open(log_path, O_RDWR | O_CREAT | O_SYNC, 0644);
+        
         if(log_fd==-1) g_result = -1;
     }
     else {
+        while(1){
+            int read_bytes = pread(log_fd, &current_record, sizeof(log_record), lb.next_offset);
+            if(read_bytes == 0){
+                lb.g_lsn = current_record.lsn + 1; 
+                break;
+            }
+
+            memcpy(lb.data + lb.next_offset, &current_record, sizeof(log_record));
+            lb.next_offset += sizeof(log_record);
+        }
+        
     }
 
-    int log_msg_fd = open(logmsg_path, O_RDWR | O_SYNC );
+    log_msg_fd = open(logmsg_path, O_RDWR | O_SYNC );
     if(log_msg_fd == -1){
         log_msg_fd = open(logmsg_path, O_RDWR | O_CREAT | O_SYNC, 0644);
         if(log_msg_fd==-1) g_result = -1;
@@ -112,6 +125,15 @@ int LOG_MANAGER::write_lb_14(uint32_t xid, uint32_t type, uint64_t tid, uint64_t
 
     return 0;
 }
+int LOG_MANAGER::flush_lb(){
+    acquire_lb_latch();
+   
+    int result = pwrite(log_fd, lb.data, lb.next_offset, 0);
+    sync();
+
+    release_lb_latch();
+    return 0;
+}
 
 void LOG_MANAGER::show_lb_buffer(){
     acquire_lb_latch();
@@ -121,7 +143,7 @@ void LOG_MANAGER::show_lb_buffer(){
     while(1){
         log_record current_record;
         memcpy(&current_record, lb.data+offset, sizeof(log_record));
-        if(current_record.log_size==0) break;
+        if(current_record.log_size!=320) break;
         
         string tp;
         switch(current_record.type){
