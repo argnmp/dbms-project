@@ -100,9 +100,9 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
     lock_t* cursor = trx_map[trx_id].head;
     queue<pair<char*, uint16_t>> restored_queue = trx_map[trx_id].undo_values;
 
-    trx_table.trx_map.erase(trx_id);
-
     log_manager.write_lb_023(trx_id, 2);
+
+    trx_table.trx_map.erase(trx_id);
 
     result = pthread_mutex_unlock(&trx_table_latch);
     if(result != 0) return 0;
@@ -143,6 +143,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
 
     trx_table.release_tt_latch();
 
+
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
 
@@ -168,6 +169,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     trx_table.acquire_tt_latch();
 
     log_manager.write_lb_023(trx_id, 3);
+
     trx_table.trx_map.erase(trx_id);
 
     trx_table.release_tt_latch();
@@ -666,6 +668,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                         target->tail->next = same_trx_lock_obj;
                         same_trx_lock_obj->prev = target->tail;
                         target->tail = same_trx_lock_obj; 
+                        same_trx_lock_obj->next = nullptr;
                     }
 
                     delete lck;
@@ -680,7 +683,9 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 //do not return for further processing
             }
             else {
-                lck->prev->next = nullptr; target->tail = lck->prev; delete lck; 
+                lock_detach(target, lck);
+                //lck->prev->next = nullptr; target->tail = lck->prev; 
+                delete lck; 
 
                 result = pthread_mutex_unlock(&lock_table_latch); 
                 if(result!=0) return -1;
@@ -736,8 +741,12 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                     bool is_deadlock = lock_acquire_deadlock_detection(cursor, trx_id);
                     if(is_deadlock){
                         //printf("deadlock!\n");
+
+                        /*
                         lck->prev->next = nullptr;
                         target->tail = lck->prev;
+                        */
+                        lock_detach(target, lck);
 
                         delete lck; 
 
@@ -760,8 +769,11 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                         //printf("current: exclusive, traget: shared, %d",is_deadlock);
                         if(is_deadlock){
                             //printf("deadlock!\n");
+                            /*
                             lck->prev->next = nullptr;
                             target->tail = lck->prev;
+                            */
+                            lock_detach(target, lck);
 
                             delete lck; 
 
@@ -784,8 +796,11 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 //printf("current: shared, traget: exclusive, %d",is_deadlock);
                 if(is_deadlock){
                     //printf("deadlock!\n");
+                    /*
                     lck->prev->next = nullptr;
                     target->tail = lck->prev;
+                    */
+                    lock_detach(target, lck);
 
                     delete lck; 
 
@@ -840,6 +855,9 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
 
 // wrapper function release_trx_lock_obj acquires lock table latch
 int lock_release(lock_t* lock_obj) {
+    if(lock_obj==nullptr){
+        return 0;
+    }
 
     int result = 0;
 
@@ -920,9 +938,16 @@ int lock_release(lock_t* lock_obj) {
 
         }
         else if(lock_obj->lock_mode == EXCLUSIVE){
+            fflush(stdout);
+
             lock_t* cursor = lock_obj->next;
+
             bool is_slock_acquired = false;
+
             while(cursor!=nullptr){
+                printf("check cursor nullptr %d\n",cursor == nullptr);
+                printf("777: cursor rid: %d, lockobj rid: %d\n",cursor->record_id, lock_obj->record_id);
+
                 if(cursor->record_id != lock_obj->record_id){
                     cursor = cursor->next;
                     continue;
@@ -934,7 +959,7 @@ int lock_release(lock_t* lock_obj) {
                     }
                     break;
                 } 
-                else {
+                else if(cursor->lock_mode == SHARED){
                     is_slock_acquired = true;
                 }
                 result = pthread_cond_signal(&cursor->cond);
@@ -949,7 +974,6 @@ int lock_release(lock_t* lock_obj) {
 
     delete lock_obj;
 
-    //printf("lock_release end\n");
 
     return 0;
 }

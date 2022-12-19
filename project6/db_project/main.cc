@@ -55,7 +55,6 @@ void* update_thread(void* arg){
         
         printf("trx_id: %d, update %d\n",trx_id, i);
         string value = "value";
-        /*
         char ret_val[150];
         uint16_t val_size;
         result = db_find(table_id, i, ret_val, &val_size, trx_id);
@@ -63,7 +62,6 @@ void* update_thread(void* arg){
 
         int converted = stoi(ret_value);
         value += to_string(converted + 1);
-        */
         
 
         uint16_t old_val_size;
