@@ -213,6 +213,9 @@ int trx_commit(int trx_id){
     log_manager.flush_lb();
     return trx_table.release_trx_lock_obj(trx_id); 
 }
+int trx_abort(int trx_id){
+    return trx_table.abort_trx_lock_obj(trx_id);
+}
 
 
 
