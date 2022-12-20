@@ -351,7 +351,7 @@ void lock_detach(hash_table_entry* target, lock_t* lock_obj){
 
 //deadlock or inner error: -1, success: 0
 int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, bool* add_undo_value) {
-    printf("lock_acquire trx_id: %d\n",trx_id);
+    //printf("lock_acquire trx_id: %d\n",trx_id);
     int result = 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
@@ -381,7 +381,6 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     result = pthread_cond_init(&(lck->cond), NULL);
     if(result!=0) return -1;
 
-    printf("checkpoint\n");
     fflush(stdout);
 
     //connect lock object at the end of list
@@ -642,7 +641,7 @@ int lock_release(lock_t* lock_obj) {
 
     int result = 0;
 
-    printf("lock_release start\n");
+    //printf("lock_release start\n");
     //printf("    lock_release %d, %d, %d\n",lock_obj->sentinel->table_id, lock_obj->sentinel->page_id, lock_obj->record_id);
 
     bool is_immediate;
