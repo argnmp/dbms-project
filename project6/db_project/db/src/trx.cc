@@ -100,8 +100,6 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
     lock_t* cursor = trx_map[trx_id].head;
     queue<pair<char*, uint16_t>> restored_queue = trx_map[trx_id].undo_values;
 
-    log_manager.write_lb_023(trx_id, 2);
-
     trx_table.trx_map.erase(trx_id);
 
     result = pthread_mutex_unlock(&trx_table_latch);
@@ -210,6 +208,13 @@ int trx_begin(){
     return trx_table.create_entry(); 
 }
 int trx_commit(int trx_id){
+
+    trx_table.acquire_tt_latch();
+    {
+        log_manager.write_lb_023(trx_id, 2);
+    }
+    trx_table.release_tt_latch();
+
     log_manager.flush_lb();
     return trx_table.release_trx_lock_obj(trx_id); 
 }
@@ -346,7 +351,7 @@ void lock_detach(hash_table_entry* target, lock_t* lock_obj){
 
 //deadlock or inner error: -1, success: 0
 int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode, bool* add_undo_value) {
-    //printf("lock_acquire trx_id: %d\n",trx_id);
+    printf("lock_acquire trx_id: %d\n",trx_id);
     int result = 0;
 
     result = pthread_mutex_lock(&lock_table_latch); 
@@ -375,6 +380,9 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     //lck->cond = PTHREAD_COND_INITIALIZER;
     result = pthread_cond_init(&(lck->cond), NULL);
     if(result!=0) return -1;
+
+    printf("checkpoint\n");
+    fflush(stdout);
 
     //connect lock object at the end of list
     bool is_immediate;
@@ -420,26 +428,62 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             if(lck->lock_mode == EXCLUSIVE){
 
 
+                /*
                 lock_detach(target, same_trx_lock_obj); 
                 same_trx_lock_obj->lock_mode = EXCLUSIVE;
+                */
+                lck->lock_mode = EXCLUSIVE;
+                lck->record_id = key;
+                lck->next_lock = same_trx_lock_obj->next_lock;
+                
+                trx_table.acquire_tt_latch();
 
-                lock_detach(target, lck);
+                lock_t* cursor = trx_table.trx_map[trx_id].head;
+                bool head_connected_flag = false;
+                bool tail_connected_flag = false;
+                if(trx_table.trx_map[trx_id].head == same_trx_lock_obj) head_connected_flag = true;
+                if(trx_table.trx_map[trx_id].tail == same_trx_lock_obj) tail_connected_flag = true;
 
-                if(target->head == nullptr){
-                    target->head = same_trx_lock_obj;
-                    target->tail = same_trx_lock_obj;
-                    same_trx_lock_obj->next = nullptr;
-                    same_trx_lock_obj->prev = nullptr;
+                if(head_connected_flag){
+                    if(tail_connected_flag){
+                        trx_table.trx_map[trx_id].head = lck;
+                        trx_table.trx_map[trx_id].tail = lck;
+                    }                    
+                    else {
+                        trx_table.trx_map[trx_id].head = lck;
+
+                    }
                 }
                 else {
-                    target->tail->next = same_trx_lock_obj;
-                    same_trx_lock_obj->prev = target->tail;
-                    target->tail = same_trx_lock_obj; 
+                    if(tail_connected_flag){
+                        while(cursor != nullptr){
+                            if(cursor->next_lock == same_trx_lock_obj){
+                                cursor->next_lock = lck;
+                                break;
+                            }
+                            cursor = cursor -> next_lock;
+                        }
+                        trx_table.trx_map[trx_id].tail = lck;
+                    }
+                    else {
+                        while(cursor != nullptr){
+                            if(cursor->next_lock == same_trx_lock_obj){
+                                cursor->next_lock = lck;
+                                break;
+                            }
+                            cursor = cursor -> next_lock;
+                        }
+                    }
                 }
+                
+
+                trx_table.release_tt_latch();
+
+
+                lock_release(same_trx_lock_obj);
+
 
                 //delete lck;
-
-                lck = same_trx_lock_obj;
 
                 *add_undo_value = true;
                 //do not return for further processing
@@ -458,7 +502,6 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             }
         }
     }
-
     if(!is_immediate){
         lock_t* cursor = lck->prev;
 
@@ -599,8 +642,7 @@ int lock_release(lock_t* lock_obj) {
 
     int result = 0;
 
-    //printf("lock_release start\n");
-    //printf("lock_release start\n");
+    printf("lock_release start\n");
     //printf("    lock_release %d, %d, %d\n",lock_obj->sentinel->table_id, lock_obj->sentinel->page_id, lock_obj->record_id);
 
     bool is_immediate;
@@ -674,9 +716,11 @@ int lock_release(lock_t* lock_obj) {
             bool is_slock_acquired = false;
 
             while(cursor!=nullptr){
+                /*
                 printf("before 777\n");
                 printf("check cursor nullptr %d\n",cursor == nullptr);
                 printf("777: cursor rid: %d, lockobj rid: %d\n",cursor->record_id, lock_obj->record_id);
+                */
 
                 if(cursor->record_id != lock_obj->record_id){
                     cursor = cursor->next;
@@ -791,9 +835,10 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
         result = leaf.leaf_find(key, ret_val, old_val_size);
         trx_table.push_undo_value(trx_id, ret_val, *old_val_size);
     //}
-    log_manager.write_lb_14(trx_id, 1, table_id, acquired_leaf.pn, 0, *old_val_size, (uint8_t*)ret_val, (uint8_t*)value, 0);
+    uint64_t page_lsn = log_manager.write_lb_14(trx_id, 1, table_id, acquired_leaf.pn, 0, *old_val_size, (uint8_t*)ret_val, (uint8_t*)value, 0);
     
     acquired_leaf.leaf_update(key, value, new_val_size, old_val_size);
+    acquired_leaf.default_page.page_lsn = page_lsn; 
     acquired_leaf.write_to_disk(); 
 
     buf_unpin(table_id, acquired_leaf.pn);

@@ -44,7 +44,7 @@ void* update_thread(void* arg){
     int trx_id = trx_begin();
     int result;
     for(int k = 1; k<10; k++){
-        int i = rand() % 100;
+        int i = rand() % 89 + 10;
         /*
         printf("trx_id: %d, update %d\n",trx_id, i);
         string value = "helloworld";
@@ -78,10 +78,12 @@ int main(){
     table_id = open_table(pathname.c_str()); 
     init_db(1000, 0, 0, (char*)"log.data", (char*)"logmsg.txt");
 
+    /*
     for(int i = 1; i<=10000; i++){
         string value = "value" + to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
+    */
 
     int finder_num = 5;
     int updater_num = 5;

@@ -7,6 +7,7 @@ Node::Node(const Node& n){
     default_page.parent_page_number = n.default_page.parent_page_number;
     default_page.is_leaf = n.default_page.is_leaf;
     default_page.number_of_keys = n.default_page.number_of_keys;
+    default_page.page_lsn = n.default_page.page_lsn;
     memcpy(default_page.reserved, n.default_page.reserved, sizeof(default_page.reserved));
     memcpy(default_page.data, n.default_page.data, sizeof(default_page.data));
     if(isLeaf()){
@@ -18,6 +19,7 @@ Node::Node(const Node& n){
 }
 Node::Node(bool is_leaf, int64_t table_id){
     default_page.parent_page_number = 0;
+    default_page.page_lsn = 0;
     pn = -1;
     if(is_leaf){
         leaf_ptr = (leaf_page_t*) &default_page; 
@@ -55,6 +57,7 @@ Node::Node(int64_t table_id, pagenum_t pagenum, Node& n1, Node& n2){
         default_page.parent_page_number = n1.default_page.parent_page_number;
         default_page.is_leaf = n1.default_page.is_leaf;
         default_page.number_of_keys = n1.default_page.number_of_keys;
+        default_page.page_lsn = n1.default_page.page_lsn;
         memcpy(default_page.reserved, n1.default_page.reserved, sizeof(default_page.reserved));
         memcpy(default_page.data, n1.default_page.data, sizeof(default_page.data));
         if(isLeaf()){
@@ -71,6 +74,7 @@ Node::Node(int64_t table_id, pagenum_t pagenum, Node& n1, Node& n2){
         default_page.parent_page_number = n2.default_page.parent_page_number;
         default_page.is_leaf = n2.default_page.is_leaf;
         default_page.number_of_keys = n2.default_page.number_of_keys;
+        default_page.page_lsn = n2.default_page.page_lsn;
         memcpy(default_page.reserved, n2.default_page.reserved, sizeof(default_page.reserved));
         memcpy(default_page.data, n2.default_page.data, sizeof(default_page.data));
         if(isLeaf()){
@@ -100,6 +104,7 @@ Node& Node::operator=(const Node& n){
     default_page.parent_page_number = n.default_page.parent_page_number;
     default_page.is_leaf = n.default_page.is_leaf;
     default_page.number_of_keys = n.default_page.number_of_keys;
+    default_page.page_lsn = n.default_page.page_lsn;
     memcpy(default_page.reserved, n.default_page.reserved, sizeof(default_page.reserved));
     memcpy(default_page.data, n.default_page.data, sizeof(default_page.data));
     if(isLeaf()){

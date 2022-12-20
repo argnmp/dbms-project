@@ -361,6 +361,7 @@ pagenum_t buf_alloc_page(int64_t table_id){
 // think about pin count!! // this should be called only when the resource is allocated
 // think about synchronization, this function should be pending if other is using page.
 int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src){
+    
 
     int result;
     /*

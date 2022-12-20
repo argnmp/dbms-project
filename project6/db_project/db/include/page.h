@@ -50,7 +50,9 @@ struct page_t {
     uint64_t parent_page_number;
     uint32_t is_leaf;
     uint32_t number_of_keys;
-    uint8_t reserved[112];
+    uint64_t before_reserved;
+    uint64_t page_lsn; 
+    uint8_t reserved[96];
     uint8_t data[PAGE_SIZE - 128];
 };
 
@@ -73,7 +75,9 @@ struct leaf_page_t {
     uint64_t parent_page_number;
     uint32_t is_leaf;
     uint32_t number_of_keys;
-    uint8_t reserved[96];
+    uint64_t before_reserved;
+    uint64_t page_lsn; 
+    uint8_t reserved[80];
     uint64_t amount_of_free_space;
     uint64_t right_sibling_page_number;
 
@@ -96,7 +100,9 @@ struct internal_page_t {
     uint64_t parent_page_number;
     uint32_t is_leaf;
     uint32_t number_of_keys;
-    uint8_t reserved[104];
+    uint64_t before_reserved;
+    uint64_t page_lsn; 
+    uint8_t reserved[88];
     uint64_t one_more_page_number;
     
     // space for key and pagenum

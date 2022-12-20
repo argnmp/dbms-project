@@ -15,6 +15,7 @@ int LOG_MANAGER::init_lm(char* log_path, char* logmsg_path){
     lb.next_offset = 0;
     lb.g_lsn = 1;
     memset(lb.data, 0, sizeof(lb.data));
+
     
     log_record current_record;
     log_fd = open(log_path, O_RDWR | O_SYNC );
@@ -31,9 +32,13 @@ int LOG_MANAGER::init_lm(char* log_path, char* logmsg_path){
                 break;
             }
 
+            trx_table.g_trx_id = std::max(current_record.transaction_id, trx_table.g_trx_id);
+
             memcpy(lb.data + lb.next_offset, &current_record, sizeof(log_record));
             lb.next_offset += sizeof(log_record);
+             
         }
+        trx_table.g_trx_id += 1;
         
     }
 
@@ -44,10 +49,17 @@ int LOG_MANAGER::init_lm(char* log_path, char* logmsg_path){
     }
     else {
     }
+    log_fp = fdopen(log_fd, "w");
+    log_msg_fp = fdopen(log_msg_fd, "w");
+
+    ANALYZE(); 
+    REDO();
 
     if (g_result!=0) return -1;
     return 0;
 }
+
+
 void LOG_MANAGER::acquire_lb_latch(){
     int result = pthread_mutex_lock(&lb.log_buffer_latch); 
     if(result != 0) {
@@ -55,6 +67,8 @@ void LOG_MANAGER::acquire_lb_latch(){
         exit(EXIT_FAILURE);
     }
 }
+
+
 void LOG_MANAGER::release_lb_latch(){
     int result = pthread_mutex_unlock(&lb.log_buffer_latch); 
     if(result != 0) {
@@ -99,31 +113,33 @@ int LOG_MANAGER::write_lb_023(uint32_t xid, uint32_t type){
     //printf("write_lb_023 end\n");
     return 0;
 }
-int LOG_MANAGER::write_lb_14(uint32_t xid, uint32_t type, uint64_t tid, uint64_t page_number, uint16_t offset, uint16_t data_length, uint8_t *old_image, uint8_t *new_image, uint64_t next_undo_lsn){
+uint64_t LOG_MANAGER::write_lb_14(uint32_t xid, uint32_t type, uint64_t tid, uint64_t page_number, uint16_t offset, uint16_t data_length, uint8_t *old_image, uint8_t *new_image, uint64_t next_undo_lsn){
+    uint64_t page_lsn;
     acquire_lb_latch();
+    {
+        log_record new_record = init_log_record();
+        new_record.lsn = lb.g_lsn;
+        page_lsn = lb.g_lsn;
+        new_record.prev_lsn = trx_table.trx_map[xid].last_lsn;
+        trx_table.trx_map[xid].last_lsn = lb.g_lsn;
+        lb.g_lsn+=1;
 
-    log_record new_record = init_log_record();
-    new_record.lsn = lb.g_lsn;
-    new_record.prev_lsn = trx_table.trx_map[xid].last_lsn;
-    trx_table.trx_map[xid].last_lsn = lb.g_lsn;
-    lb.g_lsn+=1;
+        new_record.transaction_id = xid;
+        new_record.type = type;
+        new_record.table_id = tid;
+        new_record.page_number = page_number;
+        new_record.offset = offset;
+        new_record.data_length = data_length;
+        memcpy(new_record.old_image, old_image, sizeof(uint8_t)* data_length);
+        memcpy(new_record.new_image, new_image, sizeof(uint8_t)* data_length);
+        new_record.next_undo_lsn = next_undo_lsn;
 
-    new_record.transaction_id = xid;
-    new_record.type = type;
-    new_record.table_id = tid;
-    new_record.page_number = page_number;
-    new_record.offset = offset;
-    new_record.data_length = data_length;
-    memcpy(new_record.old_image, old_image, sizeof(uint8_t)* data_length);
-    memcpy(new_record.new_image, new_image, sizeof(uint8_t)* data_length);
-    new_record.next_undo_lsn = next_undo_lsn;
-    
-    memcpy(lb.data + lb.next_offset, &new_record, sizeof(new_record));
-    lb.next_offset += sizeof(new_record);
-    
+        memcpy(lb.data + lb.next_offset, &new_record, sizeof(new_record));
+        lb.next_offset += sizeof(new_record);
+    }
     release_lb_latch();
 
-    return 0;
+    return page_lsn;
 }
 int LOG_MANAGER::flush_lb(){
     acquire_lb_latch();
@@ -171,4 +187,75 @@ void LOG_MANAGER::show_lb_buffer(){
     }
 
     release_lb_latch();
+}
+
+void LOG_MANAGER::ANALYZE(){
+    fprintf(log_msg_fp, "[ANALYSIS] Analysis pass start\n");
+    acquire_lb_latch(); 
+    {
+        int offset = 0;
+        log_record current_record;
+        while(offset != lb.next_offset){
+            memcpy(&current_record, lb.data+offset, sizeof(log_record));
+            if(current_record.type == 0){
+                loser_trx_id.insert(current_record.transaction_id);
+            }
+            else if(current_record.type == 2 || current_record.type == 3){
+                if(loser_trx_id.find(current_record.transaction_id) != loser_trx_id.end()){
+                    loser_trx_id.erase(current_record.transaction_id);
+                    winner_trx_id.insert(current_record.transaction_id);
+                } 
+            }
+            offset += sizeof(log_record);
+        }
+        
+    }
+    release_lb_latch();
+    fprintf(log_msg_fp, "[ANALYSIS] Analysis success. Winner:");
+    for(int trx_id: winner_trx_id){
+        fprintf(log_msg_fp, " %d", trx_id);
+    }
+    fprintf(log_msg_fp, ", Loser:");
+    for(int trx_id: loser_trx_id){
+        fprintf(log_msg_fp, " %d", trx_id);
+    }
+    fprintf(log_msg_fp, "\n");
+}
+void LOG_MANAGER::REDO(){
+    fprintf(log_msg_fp, "[REDO] Redo pass start\n");
+    acquire_lb_latch(); 
+    {
+        int offset = 0;
+        log_record current_record;
+        while(offset != lb.next_offset){
+            memcpy(&current_record, lb.data+offset, sizeof(log_record));
+            switch(current_record.type){
+                case 0:
+                    fprintf(log_msg_fp, "LSN %lu [BEGIN] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                    break;
+                case 1:
+                case 4: {
+                            Node target_node(current_record.table_id, current_record.page_number);
+                            buf_unpin(current_record.table_id, current_record.page_number);
+                            if(current_record.lsn <= target_node.default_page.page_lsn) {
+                                fprintf(log_msg_fp, "LSN %lu [CONSIDER-REDO] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                            }
+                            else{
+                                fprintf(log_msg_fp, "LSN %lu [UPDATE] Transaction id %d redo apply\n", current_record.lsn, current_record.transaction_id);
+                            }
+                            break;
+                        }
+                case 2:
+                    fprintf(log_msg_fp, "LSN %lu [COMMIT] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                    break;
+                case 3:
+                    fprintf(log_msg_fp, "LSN %lu [ROLLBACK] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                    break;
+            }
+            offset += sizeof(log_record);
+        }
+        
+    }
+    release_lb_latch();
+    fprintf(log_msg_fp, "[REDO] Redo pass end\n");
 }
