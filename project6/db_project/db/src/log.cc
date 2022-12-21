@@ -342,14 +342,12 @@ void LOG_MANAGER::UNDO(bool crash_flag, int* acc_log_num, int limit_log_num){
         int offset = lb.next_offset - sizeof(log_record);
         log_record current_record;
         while(offset >= 0){
-            printf("offset: %d\n",offset);
             memcpy(&current_record, lb.data+offset, sizeof(log_record));
             if(!(current_record.type==0 or current_record.type==1 or current_record.type==4)){
                 offset -= sizeof(log_record);
                 continue;
             }
 
-            printf("chk1\n");
             if(loser_trx_id.find(current_record.transaction_id)!=loser_trx_id.end()){
 
                 if(next_undo_lsn_map.find(current_record.transaction_id)!=next_undo_lsn_map.end()){
@@ -373,10 +371,8 @@ void LOG_MANAGER::UNDO(bool crash_flag, int* acc_log_num, int limit_log_num){
                     }
                 }
 
-            printf("chk2\n");
                 //when undo met begin log
                 if(current_record.type == 0){
-            printf("chk3\n");
                     write_lb_023_without_lock(current_record.transaction_id, 3);
                     loser_trx_id.erase(current_record.type);
                     fprintf(log_msg_fp, "LSN %lu [BEGIN] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
@@ -386,7 +382,6 @@ void LOG_MANAGER::UNDO(bool crash_flag, int* acc_log_num, int limit_log_num){
                     }
                 }
                 else if(current_record.type == 1){
-            printf("chk4\n");
                     if(next_undo_lsn_map.find(current_record.transaction_id)!=next_undo_lsn_map.end()){
                         if(next_undo_lsn_map[current_record.transaction_id]<current_record.lsn){
                             offset -= sizeof(log_record);
@@ -407,13 +402,11 @@ void LOG_MANAGER::UNDO(bool crash_flag, int* acc_log_num, int limit_log_num){
                             continue;
                         }
                     }
-            printf("chk4-1\n");
                     uint16_t old_val_size;
                     Node target_node(current_record.table_id, current_record.page_number);
                     target_node.leaf_update_using_offset(current_record.offset, (char*)current_record.old_image, current_record.data_length, &old_val_size);
                     buf_unpin(current_record.table_id, target_node.pn);
 
-            printf("chk4-2\n");
                     write_lb_14_without_lock(current_record.transaction_id, 4, current_record.table_id, current_record.page_number, current_record.offset, current_record.data_length, current_record.new_image, current_record.old_image, current_record.prev_lsn);
 
                     fprintf(log_msg_fp, "LSN %lu [UPDATE] Transaction id %d undo apply\n", current_record.lsn, current_record.transaction_id);
@@ -423,7 +416,6 @@ void LOG_MANAGER::UNDO(bool crash_flag, int* acc_log_num, int limit_log_num){
                     }
                 }
                 else if(current_record.type==4){
-            printf("chk5\n");
                     if(next_undo_lsn_map.find(current_record.transaction_id)!=next_undo_lsn_map.end()){
                         if(next_undo_lsn_map[current_record.transaction_id]<current_record.lsn){
                             offset -= sizeof(log_record);
