@@ -445,6 +445,30 @@ int buf_unpin(int64_t table_id, pagenum_t pagenum){
     return -1;
 }
 
+int buf_flush(){
+    int result;
+    result = pthread_mutex_lock(&buffer_latch); 
+    if(result != 0) return -1;
+
+    buf_block_t* cur = Buffer.tail->prev; 
+    while(cur->table_id!=-2){
+        if(pthread_mutex_trylock(&cur->page_latch)==0){
+            if(cur->is_dirty==1){
+                file_write_page(cur->table_id, cur->pagenum, (page_t*)cur->frame);
+                cur->is_dirty=0;
+            }
+            pthread_mutex_unlock(&cur->page_latch);
+            cur = cur->prev;
+            continue;
+        }
+        cur = cur->prev;
+    }
+
+    result = pthread_mutex_unlock(&buffer_latch);
+    if(result != 0) return -1;
+    return 0;
+}
+
 // do not need to take buffer latch
 void fini_buffer(){
     buf_block_t* cur = Buffer.head->next;

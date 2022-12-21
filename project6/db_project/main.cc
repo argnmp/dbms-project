@@ -55,6 +55,7 @@ void* update_thread(void* arg){
         
         printf("trx_id: %d, update %d\n",trx_id, i);
         string value = "value";
+        /*
         char ret_val[150];
         uint16_t val_size;
         result = db_find(table_id, i, ret_val, &val_size, trx_id);
@@ -64,6 +65,7 @@ void* update_thread(void* arg){
         int converted = stoi(ret_value);
         value += to_string(converted + 1);
         
+        */
 
         uint16_t old_val_size;
         result = db_update(table_id, i, (char*) value.c_str(), value.length(), &old_val_size, trx_id);
@@ -76,7 +78,7 @@ int main(){
     string pathname = "dbrandtest.db"; 
 
     table_id = open_table(pathname.c_str()); 
-    init_db(1000, 0, 0, (char*)"log.data", (char*)"logmsg.txt");
+    init_db(1000, 1, 30, (char*)"log.data", (char*)"logmsg.txt");
 
     /*
     for(int i = 1; i<=10000; i++){
@@ -134,6 +136,15 @@ int64_t table_id;
 void* test_thread(void* arg){
     int result;
     int trx_id = trx_begin();
+
+    printf("before start, verify 20\n");
+    char ret_val[150];
+    uint16_t val_size;
+    result = db_find(table_id, 20, ret_val, &val_size, trx_id);
+    string ret_value(ret_val, ret_val+val_size);
+
+    printf("value: %s\n", ret_value.c_str());
+
     for(int k = 1; k<10; k++){
         //int i = rand() % 100;
         int i = 20;
@@ -155,6 +166,9 @@ void* test_thread(void* arg){
         
     }
     trx_commit(trx_id);
+}
+void redo_verify(){
+    
 }
 int main(){
 

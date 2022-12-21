@@ -262,6 +262,10 @@ int Node::leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t*
     return -1;
 
 }
+int Node::leaf_update_using_offset(uint16_t offset, char* value, uint16_t new_val_size, uint16_t* old_val_size){
+    memcpy(leaf_ptr->data + offset, value, sizeof(uint8_t)* new_val_size);
+    return 0;
+}
 
 void Node::leaf_print_all(){
     for(int i = 0; i<leaf_ptr->number_of_keys; i++){

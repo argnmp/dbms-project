@@ -59,6 +59,8 @@ void buf_free_page(int64_t table_id, pagenum_t pagenum);
 //0: success, -1: {table_id, pagenum} not in the buffer.
 int buf_unpin(int64_t table_id, pagenum_t pagenum);
 
+int buf_flush();
+
 void fini_buffer();
 
 #endif

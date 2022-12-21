@@ -50,7 +50,8 @@ class LOG_MANAGER {
         void show_lb_buffer();
 
         void ANALYZE();
-        void REDO();
+        void REDO(bool crash_flag, int* acc_log_num, int limit_log_num);
+        void UNDO(bool crash_flag, int* acc_log_num, int limit_log_num);
 };
 
 extern LOG_MANAGER log_manager;

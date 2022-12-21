@@ -50,6 +50,7 @@ public:
 
     // 0 for success / -1 for fail
     int leaf_update(int64_t key, char* value, uint16_t new_val_size, uint16_t* old_val_size);
+    int leaf_update_using_offset(uint16_t offset, char* value, uint16_t new_val_size, uint16_t* old_val_size);
 
     void leaf_move_slot(slot_t* dest, uint16_t slotnum);
     void leaf_set_slot(slot_t* src, uint16_t slotnum);

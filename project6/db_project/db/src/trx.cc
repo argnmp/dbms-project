@@ -120,7 +120,7 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
     while(!restored_queue.empty()){
         auto i = restored_queue.front();
         restored_queue.pop();
-        //delete i.first;
+        delete i.first;
     }
     
     return trx_id; 
@@ -160,7 +160,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
         buf_unpin(cursor->sentinel->table_id, acquired_leaf.pn);
         buf_unpin(cursor->sentinel->table_id, 0);
 
-        //delete restored_item.first;
+        delete restored_item.first;
 
     }
 
@@ -381,8 +381,6 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     result = pthread_cond_init(&(lck->cond), NULL);
     if(result!=0) return -1;
 
-    fflush(stdout);
-
     //connect lock object at the end of list
     bool is_immediate;
     is_immediate = (target->head == nullptr);
@@ -413,7 +411,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     if(same_trx_lock_obj != nullptr){
         if(same_trx_lock_obj->lock_mode == lck->lock_mode){
             lock_detach(target, lck);
-            //delete lck;
+            delete lck;
 
             result = pthread_mutex_unlock(&lock_table_latch); 
             if(result!=0) return -1;
@@ -482,7 +480,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 lock_release(same_trx_lock_obj);
 
 
-                //delete lck;
+                delete lck;
 
                 *add_undo_value = true;
                 //do not return for further processing
@@ -490,7 +488,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             else {
                 lock_detach(target, lck);
                 //lck->prev->next = nullptr; target->tail = lck->prev; 
-                //delete lck; 
+                delete lck; 
 
                 result = pthread_mutex_unlock(&lock_table_latch); 
                 if(result!=0) return -1;
@@ -525,6 +523,9 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 if(cursor->lock_mode == EXCLUSIVE){
                     break;
                 }     
+                else if(cursor->prev == nullptr){
+                    break;
+                }
             }
             cursor = cursor -> prev;
         }
@@ -544,7 +545,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                         */
                         lock_detach(target, lck);
 
-                        //delete lck; 
+                        delete lck; 
 
                         result = pthread_mutex_unlock(&lock_table_latch); 
                         if(result!=0) return -1;
@@ -571,7 +572,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                             */
                             lock_detach(target, lck);
 
-                            //delete lck; 
+                            delete lck; 
 
                             result = pthread_mutex_unlock(&lock_table_latch); 
                             if(result!=0) return -1;
@@ -598,7 +599,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                     */
                     lock_detach(target, lck);
 
-                    //delete lck; 
+                    delete lck; 
 
                     result = pthread_mutex_unlock(&lock_table_latch); 
                     if(result!=0) return -1;
@@ -745,7 +746,7 @@ int lock_release(lock_t* lock_obj) {
         }
     }
 
-    //delete lock_obj;
+    delete lock_obj;
 
 
     return 0;
@@ -830,11 +831,12 @@ int db_update(int64_t table_id, int64_t key, char* value, uint16_t new_val_size,
 
     Node acquired_leaf = find_leaf(table_id, header_node.root_page_number, key);
     //if(add_undo_value){
-        char* ret_val  = new char[130];
-        result = leaf.leaf_find(key, ret_val, old_val_size);
-        trx_table.push_undo_value(trx_id, ret_val, *old_val_size);
+    char* ret_val  = new char[130];
+    slot_t ret_slot;
+    result = leaf.leaf_find_ret(key, ret_val, old_val_size, &ret_slot);
+    trx_table.push_undo_value(trx_id, ret_val, *old_val_size);
     //}
-    uint64_t page_lsn = log_manager.write_lb_14(trx_id, 1, table_id, acquired_leaf.pn, 0, *old_val_size, (uint8_t*)ret_val, (uint8_t*)value, 0);
+    uint64_t page_lsn = log_manager.write_lb_14(trx_id, 1, table_id, acquired_leaf.pn, ret_slot.get_offset(), *old_val_size, (uint8_t*)ret_val, (uint8_t*)value, 0);
     
     acquired_leaf.leaf_update(key, value, new_val_size, old_val_size);
     acquired_leaf.default_page.page_lsn = page_lsn; 

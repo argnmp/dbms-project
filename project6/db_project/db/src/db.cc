@@ -42,7 +42,20 @@ int init_db(int buf_num, int flag, int log_num, char* log_path, char* logmsg_pat
     g_result = init_trx();
     g_result = log_manager.init_lm(log_path, logmsg_path);
     //log_manager.show_lb_buffer(); 
-
+   
+    int acc_log_num = 0;
+    log_manager.ANALYZE();
+    if(flag < 0){
+        log_manager.REDO(false, &acc_log_num, log_num);
+        log_manager.UNDO(false, &acc_log_num, log_num);
+    }
+    else if(flag ==1){
+        log_manager.REDO(true, &acc_log_num, log_num);
+    }
+    else if(flag ==2){
+        log_manager.REDO(false, &acc_log_num, log_num);
+    }
+    log_manager.flush_lb();
     return 0;
 }
 

@@ -52,9 +52,6 @@ int LOG_MANAGER::init_lm(char* log_path, char* logmsg_path){
     log_fp = fdopen(log_fd, "w");
     log_msg_fp = fdopen(log_msg_fd, "w");
 
-    ANALYZE(); 
-    REDO();
-
     if (g_result!=0) return -1;
     return 0;
 }
@@ -154,7 +151,7 @@ int LOG_MANAGER::flush_lb(){
 void LOG_MANAGER::show_lb_buffer(){
     acquire_lb_latch();
 
-    printf("%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "type", "log_size", "lsn", "prev_lsn", "xid","tid", "pn", "d_length", "n_u_lsn", "old_img", "new_img");
+    printf("%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "type", "log_size", "lsn", "prev_lsn", "xid","tid", "pn", "offset", "d_length", "n_u_lsn", "old_img", "new_img");
     int offset = 0;
     while(1){
         log_record current_record;
@@ -182,7 +179,7 @@ void LOG_MANAGER::show_lb_buffer(){
         string old_value(current_record.old_image, current_record.old_image + current_record.data_length);
         string new_value(current_record.new_image, current_record.new_image + current_record.data_length);
 
-        printf("%10s %10d %10d %10d %10d %10d %10d %10d %10d %s %s\n",tp.c_str(), current_record.log_size, current_record.lsn, current_record.prev_lsn, current_record.transaction_id, current_record.table_id, current_record.page_number, current_record.data_length, current_record.next_undo_lsn, old_value.c_str(), new_value.c_str() );
+        printf("%10s %10d %10d %10d %10d %10d %10d %10d %10d %10d %s %s\n",tp.c_str(), current_record.log_size, current_record.lsn, current_record.prev_lsn, current_record.transaction_id, current_record.table_id, current_record.page_number, current_record.offset, current_record.data_length, current_record.next_undo_lsn, old_value.c_str(), new_value.c_str() );
         offset += sizeof(log_record);
     }
 
@@ -221,8 +218,10 @@ void LOG_MANAGER::ANALYZE(){
     }
     fprintf(log_msg_fp, "\n");
 }
-void LOG_MANAGER::REDO(){
+void LOG_MANAGER::REDO(bool crash_flag, int* acc_log_num, int limit_log_num){
     fprintf(log_msg_fp, "[REDO] Redo pass start\n");
+    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true) return;
+     
     acquire_lb_latch(); 
     {
         int offset = 0;
@@ -232,24 +231,52 @@ void LOG_MANAGER::REDO(){
             switch(current_record.type){
                 case 0:
                     fprintf(log_msg_fp, "LSN %lu [BEGIN] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
+                        release_lb_latch();
+                        return;
+                    }
                     break;
                 case 1:
                 case 4: {
                             Node target_node(current_record.table_id, current_record.page_number);
-                            buf_unpin(current_record.table_id, current_record.page_number);
                             if(current_record.lsn <= target_node.default_page.page_lsn) {
                                 fprintf(log_msg_fp, "LSN %lu [CONSIDER-REDO] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                                *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
+                                    buf_unpin(current_record.table_id, current_record.page_number);
+                                    release_lb_latch();
+                                    return;
+                                }
                             }
                             else{
                                 fprintf(log_msg_fp, "LSN %lu [UPDATE] Transaction id %d redo apply\n", current_record.lsn, current_record.transaction_id);
+                                *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true) {
+                                    buf_unpin(current_record.table_id, current_record.page_number);
+                                    release_lb_latch();
+                                    return;
+                                }
+
+                                uint16_t old_val_size;
+
+                                target_node.leaf_update_using_offset(current_record.offset, (char*)current_record.new_image, current_record.data_length, &old_val_size);
+                                target_node.write_to_disk();
+
                             }
+                            buf_unpin(current_record.table_id, current_record.page_number);
                             break;
                         }
                 case 2:
                     fprintf(log_msg_fp, "LSN %lu [COMMIT] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
+                        release_lb_latch();
+                        return;
+                    }
                     break;
                 case 3:
                     fprintf(log_msg_fp, "LSN %lu [ROLLBACK] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
+                        release_lb_latch();
+                        return;
+                    }
                     break;
             }
             offset += sizeof(log_record);
@@ -257,5 +284,16 @@ void LOG_MANAGER::REDO(){
         
     }
     release_lb_latch();
+
     fprintf(log_msg_fp, "[REDO] Redo pass end\n");
+    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true) return;
+}
+void LOG_MANAGER::UNDO(bool crash_flag, int* acc_log_num, int limit_log_num){
+    fprintf(log_msg_fp, "[UNDO] Undo pass start\n");
+    acquire_lb_latch();
+    {
+         
+    }
+    release_lb_latch();
+    fprintf(log_msg_fp, "[UNDO] Undo pass end\n");
 }
