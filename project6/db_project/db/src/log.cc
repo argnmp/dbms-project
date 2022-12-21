@@ -240,25 +240,28 @@ void LOG_MANAGER::REDO(bool crash_flag, int* acc_log_num, int limit_log_num){
                 case 4: {
                             Node target_node(current_record.table_id, current_record.page_number);
                             if(current_record.lsn <= target_node.default_page.page_lsn) {
+
                                 fprintf(log_msg_fp, "LSN %lu [CONSIDER-REDO] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
                                 *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
                                     buf_unpin(current_record.table_id, current_record.page_number);
                                     release_lb_latch();
                                     return;
                                 }
+
                             }
                             else{
+
+                                uint16_t old_val_size;
+
+                                target_node.leaf_update_using_offset(current_record.offset, (char*)current_record.new_image, current_record.data_length, &old_val_size);
+                                target_node.write_to_disk();
+
                                 fprintf(log_msg_fp, "LSN %lu [UPDATE] Transaction id %d redo apply\n", current_record.lsn, current_record.transaction_id);
                                 *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true) {
                                     buf_unpin(current_record.table_id, current_record.page_number);
                                     release_lb_latch();
                                     return;
                                 }
-
-                                uint16_t old_val_size;
-
-                                target_node.leaf_update_using_offset(current_record.offset, (char*)current_record.new_image, current_record.data_length, &old_val_size);
-                                target_node.write_to_disk();
 
                             }
                             buf_unpin(current_record.table_id, current_record.page_number);
@@ -290,10 +293,164 @@ void LOG_MANAGER::REDO(bool crash_flag, int* acc_log_num, int limit_log_num){
 }
 void LOG_MANAGER::UNDO(bool crash_flag, int* acc_log_num, int limit_log_num){
     fprintf(log_msg_fp, "[UNDO] Undo pass start\n");
+    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true) return;
+    std::unordered_map<int32_t, uint64_t> next_undo_lsn_map;
+        
     acquire_lb_latch();
     {
-         
+        int offset = lb.next_offset - sizeof(log_record);
+        log_record current_record;
+        while(offset >= 0){
+            if(!(current_record.type==0 or current_record.type==1 or current_record.type==4)){
+                offset -= sizeof(log_record);
+                continue;
+            }
+            memcpy(&current_record, lb.data+offset, sizeof(log_record));
+
+            if(loser_trx_id.find(current_record.transaction_id)!=loser_trx_id.end()){
+
+                if(next_undo_lsn_map.find(current_record.transaction_id)!=next_undo_lsn_map.end()){
+                    if(next_undo_lsn_map[current_record.transaction_id]<current_record.lsn){
+                        offset -= sizeof(log_record);
+                        continue;
+                    }
+                    else{
+                        if(current_record.next_undo_lsn!=0){
+                            next_undo_lsn_map[current_record.transaction_id] = current_record.next_undo_lsn;
+                            offset -= sizeof(log_record);
+                            continue;
+                        }
+                    }
+                }
+                else{
+                    if(current_record.next_undo_lsn!=0){
+                        next_undo_lsn_map.insert({current_record.transaction_id, current_record.next_undo_lsn});
+                        offset -= sizeof(log_record);
+                        continue;
+                    }
+                }
+
+                //when undo met begin log
+                if(current_record.type == 0){
+                    write_lb_023(current_record.transaction_id, 3);
+                    loser_trx_id.erase(current_record.type);
+                    fprintf(log_msg_fp, "LSN %lu [BEGIN] Transaction id %d\n", current_record.lsn, current_record.transaction_id);
+                    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
+                        release_lb_latch();
+                        return;
+                    }
+                }
+                else if(current_record.type == 1){
+                    if(next_undo_lsn_map.find(current_record.transaction_id)!=next_undo_lsn_map.end()){
+                        if(next_undo_lsn_map[current_record.transaction_id]<current_record.lsn){
+                            offset -= sizeof(log_record);
+                            continue;
+                        }
+                        else{
+                            if(current_record.next_undo_lsn!=0){
+                                next_undo_lsn_map[current_record.transaction_id] = current_record.next_undo_lsn;
+                                offset -= sizeof(log_record);
+                                continue;
+                            }
+                        }
+                    }
+                    else{
+                        if(current_record.next_undo_lsn!=0){
+                            next_undo_lsn_map.insert({current_record.transaction_id, current_record.next_undo_lsn});
+                            offset -= sizeof(log_record);
+                            continue;
+                        }
+                    }
+                    uint16_t old_val_size;
+                    Node target_node(current_record.table_id, current_record.page_number);
+                    target_node.leaf_update_using_offset(current_record.offset, (char*)current_record.old_image, current_record.data_length, &old_val_size);
+                    buf_unpin(current_record.table_id, current_record.page_number);
+
+                    write_lb_14(current_record.transaction_id, 4, current_record.table_id, current_record.page_number, current_record.offset, current_record.data_length, current_record.new_image, current_record.old_image, current_record.prev_lsn);
+
+                    fprintf(log_msg_fp, "LSN %lu [UPDATE] Transaction id %d undo apply\n", current_record.lsn, current_record.transaction_id);
+                    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
+                        release_lb_latch();
+                        return;
+                    }
+                }
+                else if(current_record.type==4){
+                    if(next_undo_lsn_map.find(current_record.transaction_id)!=next_undo_lsn_map.end()){
+                        if(next_undo_lsn_map[current_record.transaction_id]<current_record.lsn){
+                            offset -= sizeof(log_record);
+                            continue;
+                        }
+                        else{
+                            if(current_record.next_undo_lsn!=0){
+                                next_undo_lsn_map[current_record.transaction_id] = current_record.next_undo_lsn;
+                                offset -= sizeof(log_record);
+                                continue;
+                            }
+                        }
+                    }
+                    else{
+                        if(current_record.next_undo_lsn!=0){
+                            next_undo_lsn_map.insert({current_record.transaction_id, current_record.next_undo_lsn});
+                            offset -= sizeof(log_record);
+                            continue;
+                        }
+                    }
+                    uint16_t old_val_size;
+                    Node target_node(current_record.table_id, current_record.page_number);
+                    target_node.leaf_update_using_offset(current_record.offset, (char*)current_record.old_image, current_record.data_length, &old_val_size);
+                    buf_unpin(current_record.table_id, current_record.page_number);
+
+                    write_lb_14(current_record.transaction_id, 4, current_record.table_id, current_record.page_number, current_record.offset, current_record.data_length, current_record.new_image, current_record.old_image, current_record.prev_lsn);
+
+                    fprintf(log_msg_fp, "LSN %lu [CLR] next undo lsn %lu\n", current_record.lsn, current_record.next_undo_lsn);
+                    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true){
+                        release_lb_latch();
+                        return;
+                    }
+                }
+            }
+
+            
+            offset -= sizeof(log_record);
+
+        }
     }
     release_lb_latch();
     fprintf(log_msg_fp, "[UNDO] Undo pass end\n");
+    *acc_log_num += 1; if(*acc_log_num==limit_log_num && crash_flag == true) return;
+}
+
+void LOG_MANAGER::ABORT(int trx_id){
+    acquire_lb_latch();
+    {
+        int offset = lb.next_offset - sizeof(log_record);      
+        log_record current_record;
+        while(offset >= 0){
+            if(current_record.transaction_id != trx_id){
+                offset -= sizeof(log_record);
+                continue;
+            }
+            memcpy(&current_record, lb.data+offset, sizeof(log_record));
+            if(current_record.type == 0){
+                write_lb_023(current_record.transaction_id, 3);
+                break;
+            }
+
+            if(current_record.type == 1){
+            printf("found\n");
+                uint16_t old_val_size;
+                Node target_node(current_record.table_id, current_record.page_number);
+
+                target_node.leaf_update_using_offset(current_record.offset, (char*)current_record.old_image, current_record.data_length, &old_val_size);
+
+                buf_unpin(current_record.table_id, current_record.page_number);
+
+                write_lb_14(current_record.transaction_id, 4, current_record.table_id, current_record.page_number, current_record.offset, current_record.data_length, current_record.new_image, current_record.old_image, current_record.prev_lsn);
+
+            } 
+            
+            offset -= sizeof(log_record);
+        }
+    }
+    release_lb_latch();
 }

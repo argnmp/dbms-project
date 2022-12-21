@@ -52,6 +52,7 @@ class LOG_MANAGER {
         void ANALYZE();
         void REDO(bool crash_flag, int* acc_log_num, int limit_log_num);
         void UNDO(bool crash_flag, int* acc_log_num, int limit_log_num);
+        void ABORT(int trx_id);
 };
 
 extern LOG_MANAGER log_manager;

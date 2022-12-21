@@ -1,4 +1,4 @@
-#define buffer_test 123
+//#define buffer_test 123
 #ifdef buffer_test
 
 #include "dbpt.h"
@@ -55,7 +55,6 @@ void* update_thread(void* arg){
         
         printf("trx_id: %d, update %d\n",trx_id, i);
         string value = "value";
-        /*
         char ret_val[150];
         uint16_t val_size;
         result = db_find(table_id, i, ret_val, &val_size, trx_id);
@@ -65,7 +64,6 @@ void* update_thread(void* arg){
         int converted = stoi(ret_value);
         value += to_string(converted + 1);
         
-        */
 
         uint16_t old_val_size;
         result = db_update(table_id, i, (char*) value.c_str(), value.length(), &old_val_size, trx_id);
@@ -78,7 +76,7 @@ int main(){
     string pathname = "dbrandtest.db"; 
 
     table_id = open_table(pathname.c_str()); 
-    init_db(1000, 1, 30, (char*)"log.data", (char*)"logmsg.txt");
+    init_db(1000, -1, 30, (char*)"log.data", (char*)"logmsg.txt");
 
     /*
     for(int i = 1; i<=10000; i++){
@@ -113,7 +111,7 @@ int main(){
 #endif 
 
 
-//#define buffer_test_2 123
+#define buffer_test_2 123
 #ifdef buffer_test_2
 
 #include "dbpt.h"
@@ -167,20 +165,19 @@ void* test_thread(void* arg){
     }
     trx_commit(trx_id);
 }
-void redo_verify(){
-    
-}
 int main(){
 
     string pathname = "dbrandtest.db"; 
 
     table_id = open_table(pathname.c_str()); 
-    init_db(1000, 0, 0, (char*)"log.data", (char*)"logmsg.txt");
+    init_db(1000, -1, 30, (char*)"log.data", (char*)"logmsg.txt");
 
+    /*
     for(int i = 1; i<=10000; i++){
         string value = "value" + to_string(i);
         db_insert(table_id, i, value.c_str(), value.length());
     }
+    */
 
     int test_num = 1;
 

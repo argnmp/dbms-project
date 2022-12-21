@@ -126,7 +126,7 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
     return trx_id; 
 }
 int TRX_Table::abort_trx_lock_obj(int trx_id){
-    //printf("abort sequence start\n");
+    printf("abort sequence start\n");
     int result;
     trx_table.acquire_tt_latch();
 
@@ -145,6 +145,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     result = pthread_mutex_lock(&lock_table_latch); 
     if(result!=0) return 0;
 
+    /*
     while(!restored_queue.empty()){
         auto restored_item =  restored_queue.front();
         restored_queue.pop();
@@ -163,7 +164,10 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
         delete restored_item.first;
 
     }
+    */
+    log_manager.ABORT(trx_id);
 
+    /*
     trx_table.acquire_tt_latch();
 
     log_manager.write_lb_023(trx_id, 3);
@@ -171,6 +175,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
     trx_table.trx_map.erase(trx_id);
 
     trx_table.release_tt_latch();
+    */
 
     while(cursor != nullptr){
         //printf("record_id: %d\n",cursor->record_id);

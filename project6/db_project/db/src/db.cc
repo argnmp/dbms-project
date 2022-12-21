@@ -43,16 +43,18 @@ int init_db(int buf_num, int flag, int log_num, char* log_path, char* logmsg_pat
     g_result = log_manager.init_lm(log_path, logmsg_path);
     //log_manager.show_lb_buffer(); 
    
-    int acc_log_num = 0;
     log_manager.ANALYZE();
     if(flag < 0){
+        int acc_log_num = 0;
         log_manager.REDO(false, &acc_log_num, log_num);
         log_manager.UNDO(false, &acc_log_num, log_num);
     }
     else if(flag ==1){
+        int acc_log_num = 0;
         log_manager.REDO(true, &acc_log_num, log_num);
     }
     else if(flag ==2){
+        int acc_log_num = 0;
         log_manager.REDO(false, &acc_log_num, log_num);
     }
     log_manager.flush_lb();
@@ -63,7 +65,7 @@ int shutdown_db(){
     for (auto i: allocated_memory_ptr){
         delete[] i;
     }
-    fini_buffer();
+    //fini_buffer();
     file_close_database_file();
     return 0;
 }
