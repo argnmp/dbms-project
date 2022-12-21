@@ -55,6 +55,7 @@ void* update_thread(void* arg){
         
         printf("trx_id: %d, update %d\n",trx_id, i);
         string value = "value";
+        /*
         char ret_val[150];
         uint16_t val_size;
         result = db_find(table_id, i, ret_val, &val_size, trx_id);
@@ -65,6 +66,7 @@ void* update_thread(void* arg){
         value += to_string(converted + 1);
         
 
+        */
         uint16_t old_val_size;
         result = db_update(table_id, i, (char*) value.c_str(), value.length(), &old_val_size, trx_id);
         if(result==-1) return NULL;
@@ -129,11 +131,13 @@ int main(){
 #include <thread>
 #include <time.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 int64_t table_id;
-void* test_thread(void* arg){
+void sequence(){
     int result;
     int trx_id = trx_begin();
+    int trx_id_for_commit = trx_begin();
 
     printf("before start, verify 20\n");
     char ret_val[150];
@@ -143,8 +147,7 @@ void* test_thread(void* arg){
 
     printf("value: %s\n", ret_value.c_str());
 
-    for(int k = 1; k<10; k++){
-        //int i = rand() % 100;
+    for(int k = 1; k<=20; k++){
         int i = 20;
         printf("trx_id: %d, update %d\n",trx_id, i);
         string value = "value";
@@ -157,13 +160,23 @@ void* test_thread(void* arg){
         int converted = stoi(ret_value);
         value += to_string(converted + 1);
         
+        if(k==10) {
+            trx_commit(trx_id_for_commit);
+            log_manager.show_lb_buffer();
+            exit(1);
+        }
 
         uint16_t old_val_size;
         result = db_update(table_id, i, (char*) value.c_str(), value.length(), &old_val_size, trx_id);
-        if(result==-1) return NULL;
         
     }
     trx_commit(trx_id);
+    
+}
+void* test_thread(void* arg){
+    log_manager.show_lb_buffer();
+    sequence();
+    return nullptr;
 }
 int main(){
 

@@ -65,7 +65,7 @@ int shutdown_db(){
     for (auto i: allocated_memory_ptr){
         delete[] i;
     }
-    //fini_buffer();
+    fini_buffer();
     file_close_database_file();
     return 0;
 }

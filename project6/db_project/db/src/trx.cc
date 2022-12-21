@@ -120,13 +120,12 @@ int TRX_Table::release_trx_lock_obj(int trx_id){
     while(!restored_queue.empty()){
         auto i = restored_queue.front();
         restored_queue.pop();
-        delete i.first;
+        //delete i.first;
     }
     
     return trx_id; 
 }
 int TRX_Table::abort_trx_lock_obj(int trx_id){
-    printf("abort sequence start\n");
     int result;
     trx_table.acquire_tt_latch();
 
@@ -141,9 +140,6 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
 
     trx_table.release_tt_latch();
 
-
-    result = pthread_mutex_lock(&lock_table_latch); 
-    if(result!=0) return 0;
 
     /*
     while(!restored_queue.empty()){
@@ -161,7 +157,7 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
         buf_unpin(cursor->sentinel->table_id, acquired_leaf.pn);
         buf_unpin(cursor->sentinel->table_id, 0);
 
-        delete restored_item.first;
+        //delete restored_item.first;
 
     }
     */
@@ -176,6 +172,9 @@ int TRX_Table::abort_trx_lock_obj(int trx_id){
 
     trx_table.release_tt_latch();
     */
+
+    result = pthread_mutex_lock(&lock_table_latch); 
+    if(result!=0) return 0;
 
     while(cursor != nullptr){
         //printf("record_id: %d\n",cursor->record_id);
@@ -416,7 +415,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
     if(same_trx_lock_obj != nullptr){
         if(same_trx_lock_obj->lock_mode == lck->lock_mode){
             lock_detach(target, lck);
-            delete lck;
+            //delete lck;
 
             result = pthread_mutex_unlock(&lock_table_latch); 
             if(result!=0) return -1;
@@ -485,7 +484,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                 lock_release(same_trx_lock_obj);
 
 
-                delete lck;
+                //delete lck;
 
                 *add_undo_value = true;
                 //do not return for further processing
@@ -493,7 +492,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
             else {
                 lock_detach(target, lck);
                 //lck->prev->next = nullptr; target->tail = lck->prev; 
-                delete lck; 
+                //delete lck; 
 
                 result = pthread_mutex_unlock(&lock_table_latch); 
                 if(result!=0) return -1;
@@ -550,7 +549,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                         */
                         lock_detach(target, lck);
 
-                        delete lck; 
+                        //delete lck; 
 
                         result = pthread_mutex_unlock(&lock_table_latch); 
                         if(result!=0) return -1;
@@ -577,7 +576,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                             */
                             lock_detach(target, lck);
 
-                            delete lck; 
+                            //delete lck; 
 
                             result = pthread_mutex_unlock(&lock_table_latch); 
                             if(result!=0) return -1;
@@ -604,7 +603,7 @@ int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, i
                     */
                     lock_detach(target, lck);
 
-                    delete lck; 
+                    //delete lck; 
 
                     result = pthread_mutex_unlock(&lock_table_latch); 
                     if(result!=0) return -1;
@@ -751,7 +750,7 @@ int lock_release(lock_t* lock_obj) {
         }
     }
 
-    delete lock_obj;
+    //delete lock_obj;
 
 
     return 0;

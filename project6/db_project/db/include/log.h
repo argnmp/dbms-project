@@ -44,7 +44,9 @@ class LOG_MANAGER {
         log_record init_log_record();
 
         int write_lb_023(uint32_t xid, uint32_t type);
+        int write_lb_023_without_lock(uint32_t xid, uint32_t type);
         uint64_t write_lb_14(uint32_t xid, uint32_t type, uint64_t tid, uint64_t page_number, uint16_t offset, uint16_t data_length, uint8_t* old_image, uint8_t* new_image, uint64_t next_undo_lsn);
+        uint64_t write_lb_14_without_lock(uint32_t xid, uint32_t type, uint64_t tid, uint64_t page_number, uint16_t offset, uint16_t data_length, uint8_t* old_image, uint8_t* new_image, uint64_t next_undo_lsn);
         int flush_lb();
 
         void show_lb_buffer();
