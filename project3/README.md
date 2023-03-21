@@ -68,7 +68,8 @@ public:
 - `remove_frame` detaches the buffer control block(target)
 
 ### Diagram
-![diagram](uploads/9418928caf3eb3bd9c8e0cef7b8d3ba1/diagram.png)
+
+![diagram](https://user-images.githubusercontent.com/52111798/226518582-c4c5910f-fc05-43c0-8a5e-210d76f847a6.png)
 
 ## Cases 
 There are 7 apis to replace the function of file manager (file.h from project1).
@@ -93,9 +94,11 @@ Every time a page is read or new page is allocated from upper layer(index manage
 - `pagenum_t buf_alloc_page(int64_t table_id);`
 - With buffer implemented, header page of a table can exist in the buffer and can be in the modified state(not written to disk yet). The existing `file_alloc_page` api can't be used in this case, because it directly reads the header page from disk(file). So the existing api cannot be used immediately. In the modified version, it eventually creates an entry for newly allocated page at the front of buffer control block list and set pin to it.
 
+
 ### write to page using buffer
 - `int buf_write_page(int64_t table_id, pagenum_t pagenum, const struct page_t* src);`
 - In this design, writing to a page using buffer should always be occured only if the resouce is taken, which means that the pin should be set before write to page using buffer. 
+
 
 ## free a page using buffer
 - `void buf_free_page(int64_t table_id, pagenum_t pagenum);`
@@ -182,4 +185,5 @@ buffer size: 3000
 - When using buffers of 70% of total page usage, insertion and deletion are almost 3 times faster than using buffers of 30% of total page usage. 
 
 Furthermore, it is clear that the degree of time reduction of using buffer in sequential insertion and deletion is much greater than using buffer in random insertion and deletion.
+
 
